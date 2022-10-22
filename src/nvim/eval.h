@@ -153,6 +153,8 @@ typedef enum {
   VV_COLLATE,
   VV_EXITING,
   // Nvim
+  VV_REDRAW_LNUM,
+  VV_REDRAW_RELNUM,
   VV_STDERR,
   VV_MSGPACK_TYPES,
   VV__NULL_STRING,  // String with NULL value. For test purposes only.

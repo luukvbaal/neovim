@@ -944,6 +944,7 @@ enum {
   WV_RNU,
   WV_VE,
   WV_NUW,
+  WV_NUC,
   WV_PVW,
   WV_RL,
   WV_RLC,

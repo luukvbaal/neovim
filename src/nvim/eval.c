@@ -237,6 +237,8 @@ static struct vimvar {
   VV(VV__NULL_DICT,       "_null_dict",       VAR_DICT, VV_RO),
   VV(VV__NULL_BLOB,       "_null_blob",       VAR_BLOB, VV_RO),
   VV(VV_LUA,              "lua",              VAR_PARTIAL, VV_RO),
+  VV(VV_REDRAW_LNUM,      "redraw_lnum",      VAR_NUMBER, VV_RO),
+  VV(VV_REDRAW_RELNUM,    "redraw_relnum",    VAR_NUMBER, VV_RO),
 };
 #undef VV
 

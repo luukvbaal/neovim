@@ -38,9 +38,11 @@ describe('ffi.cdef', function()
           char_u *out,
           size_t outlen,
           char_u *fmt,
+          char_u *opt_name,
           int use_sandbox,
           char_u fillchar,
           int maxwidth,
+					int *truncate,
           stl_hlrec_t **hltab,
           StlClickRecord **tabtab
         );
@@ -51,9 +53,11 @@ describe('ffi.cdef', function()
         ffi.new('char_u[1024]'),
         1024,
         ffi.cast('char_u*', 'StatusLineOfLength20'),
+        ffi.cast('char_u*', 'statusline'),
         0,
         0,
         0,
+        nil,
         nil,
         nil
       )
