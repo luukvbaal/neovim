@@ -386,6 +386,17 @@ void redraw_custom_statusline(win_T *wp)
   entered = false;
 }
 
+// Allocate or resize the click definitions array if needed.
+static StlClickDefinition *stl_alloc_click_defs(StlClickDefinition *cdp, size_t *size, size_t width)
+{
+  if (*size < width) {
+    xfree(cdp);
+    *size = width;
+    cdp = xcalloc(width, sizeof(StlClickDefinition));
+  }
+  return cdp;
+}
+
 /// Redraw the status line, window bar or ruler of window "wp".
 /// When "wp" is NULL redraw the tab pages line from 'tabline'.
 /// When row is nonzero redraw the number column from 'numbercolumn'.
@@ -432,12 +443,11 @@ void win_redr_custom(win_T *wp, int row, int attr, bool draw_winbar, bool draw_r
     col = wp->w_wincol + win_col_off(wp) - maxwidth;
     row += wp->w_winrow + wp->w_winbar_height;
 
-    stl_clear_click_defs(wp->w_numcol_click_defs, (long)wp->w_numcol_click_defs_size);
-    // Allocate / resize the click definitions array for numbercolumn if needed.
-    if (wp->w_numcol_click_defs_size < (size_t)maxwidth) {
-      xfree(wp->w_numcol_click_defs);
-      wp->w_numcol_click_defs_size = (size_t)maxwidth;
-      wp->w_numcol_click_defs = xcalloc(wp->w_numcol_click_defs_size, sizeof(StlClickDefinition));
+    if (row == wp->w_winrow + wp->w_winbar_height) {
+      stl_clear_click_defs(wp->w_numcol_click_defs, (long)wp->w_numcol_click_defs_size);
+      wp->w_numcol_click_defs = stl_alloc_click_defs(wp->w_numcol_click_defs,
+                                                     &wp->w_numcol_click_defs_size,
+                                                     (size_t)maxwidth);
     }
   } else if (wp == NULL) {
     // Use 'tabline'.  Always at the first line of the screen.
@@ -464,24 +474,18 @@ void win_redr_custom(win_T *wp, int row, int attr, bool draw_winbar, bool draw_r
     maxwidth = wp->w_width_inner;
 
     stl_clear_click_defs(wp->w_winbar_click_defs, (long)wp->w_winbar_click_defs_size);
-    // Allocate / resize the click definitions array for winbar if needed.
-    if (wp->w_winbar_height && wp->w_winbar_click_defs_size < (size_t)maxwidth) {
-      xfree(wp->w_winbar_click_defs);
-      wp->w_winbar_click_defs_size = (size_t)maxwidth;
-      wp->w_winbar_click_defs = xcalloc(wp->w_winbar_click_defs_size, sizeof(StlClickRecord));
-    }
+    wp->w_winbar_click_defs = stl_alloc_click_defs(wp->w_winbar_click_defs,
+                                                   &wp->w_winbar_click_defs_size,
+                                                   (size_t)maxwidth);
   } else {
     row = is_stl_global ? (Rows - (int)p_ch - 1) : W_ENDROW(wp);
     fillchar = fillchar_status(&attr, wp);
     maxwidth = is_stl_global ? Columns : wp->w_width;
 
     stl_clear_click_defs(wp->w_status_click_defs, (long)wp->w_status_click_defs_size);
-    // Allocate / resize the click definitions array for statusline if needed.
-    if (wp->w_status_click_defs_size < (size_t)maxwidth) {
-      xfree(wp->w_status_click_defs);
-      wp->w_status_click_defs_size = (size_t)maxwidth;
-      wp->w_status_click_defs = xcalloc(wp->w_status_click_defs_size, sizeof(StlClickRecord));
-    }
+    wp->w_status_click_defs = stl_alloc_click_defs(wp->w_status_click_defs,
+                                                   &wp->w_status_click_defs_size,
+                                                   (size_t)maxwidth);
 
     if (draw_ruler) {
       stl = p_ruf;
