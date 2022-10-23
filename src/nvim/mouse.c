@@ -133,6 +133,7 @@ int jump_to_mouse(int flags, bool *inclusive, int which_button)
   static bool on_status_line = false;
   static bool on_sep_line = false;
   static bool on_winbar = false;
+  static bool on_numcol = false;
   static int prev_row = -1;
   static int prev_col = -1;
   static win_T *dragwin = NULL;         // window being dragged
@@ -176,6 +177,9 @@ retnomove:
     if (on_winbar) {
       return IN_OTHER_WIN | MOUSE_WINBAR;
     }
+    if (on_numcol) {
+      return IN_OTHER_WIN | MOUSE_NUMCOL;
+    }
     if (flags & MOUSE_MAY_STOP_VIS) {
       end_visual_mode();
       redraw_curbuf_later(UPD_INVERTED);  // delete the inversion
@@ -210,6 +214,10 @@ retnomove:
     ? wp->w_winbar_height != 0
     : false;
 
+  on_numcol = grid == (col < win_col_off(wp))
+    ? *wp->w_p_nuc != NUL
+    : false;
+
   on_sep_line = grid == DEFAULT_GRID_HANDLE && col >= wp->w_width
     ? col - wp->w_width + 1 == 1
     : false;
@@ -235,6 +243,10 @@ retnomove:
   if (!keep_focus) {
     if (on_winbar) {
       return IN_OTHER_WIN | MOUSE_WINBAR;
+    }
+
+    if (on_numcol) {
+      return IN_OTHER_WIN | MOUSE_NUMCOL;
     }
 
     fdc = win_fdccol_count(wp);
@@ -339,6 +351,9 @@ retnomove:
   } else if (on_winbar && which_button == MOUSE_RIGHT) {
     // After a click on the window bar don't start Visual mode.
     return IN_OTHER_WIN | MOUSE_WINBAR;
+  } else if (on_numcol && which_button == MOUSE_RIGHT) {
+    // After a click on the number column don't start Visual mode.
+    return IN_OTHER_WIN | MOUSE_NUMCOL;
   } else {
     // keep_window_focus must be true
     // before moving the cursor for a left click, stop Visual mode

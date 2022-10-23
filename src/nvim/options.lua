@@ -1617,6 +1617,15 @@ return {
       defaults={if_true=false}
     },
     {
+      full_name='numbercolumn', abbreviation='nuc',
+      short_desc=N_("custom format for the number column"),
+      type='string', scope={'window'},
+      redraw={'current_window'},
+      secure=true,
+      alloced=true,
+      defaults={if_true=""}
+    },
+    {
       full_name='numberwidth', abbreviation='nuw',
       short_desc=N_("number of columns used for the line number"),
       type='number', scope={'window'},

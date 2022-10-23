@@ -4364,6 +4364,42 @@ A jump table for the options with a short description can be found at |Q_op|.
 	    |nobody         |  3 nobody     |  0 nobody     |3   nobody
 	    |there          |  4 there      |  1 there      |  1 there
 
+				*'numbercolumn'* *'nuc'*
+'numbercolumn' 'nuc'	string	(default: empty)
+			local to window
+	EXPERIMENTAL
+	When this option is not empty, it determines the content of the number
+	column. The format of this option is like that of 'statusline'. The
+	variables *v:redraw_lnum* and *v:redraw_relnum* will be set to the to be
+	printed line number and relative line number respectively. These can be
+	evaluated in an expression inside a 'statusline' '%{}' block.
+	Aditionally, the '%l' and '%r' items from the 'statusline' format are
+	overloaded with the to be printed (relative) line number. These can be
+	evaluated in a '%{}' block as well.
+
+	Examples: >
+		" Relative number with bar separator
+		:set numbercolumn=%=%r│
+
+		" Right aligned relative cursor line number:
+		:let &nuc='%=%{%r?%r:%l} '
+
+		" Line numbers in hexadecimal:
+		:let &nuc='%=%{printf("%x",v:redraw_lnum)} '
+
+		" Human readable line numbers with thousands separator:
+		:let &nuc='%{substitute(%l,"\\d\\zs\\ze\\%(\\d\\d\\d\\)\\+$",' .
+			  '",","g")}'
+
+		" Both relative and absolute line numbers with different
+		" highlighting for odd and even relative numbers:
+		:let &nuc='%#NonText#%{&nu?%l:""}' .
+			  '%=%{&rnu&&(%l%2)?"\ ".%r:""}' .
+			  '%#LineNr#%{&rnu&&!(%l%2)?"\ ".%r:""}'
+
+<	WARNING: this expression is evaluated for each buffer line so defining
+	an expensive expression can negatively affect render performance.
+
 						*'numberwidth'* *'nuw'*
 'numberwidth' 'nuw'	number	(default: 4)
 			local to window

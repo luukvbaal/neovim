@@ -233,9 +233,11 @@ describe('buffer functions', function()
                                      output_buffer,
                                      buffer_byte_size,
                                      to_cstr(pat),
+                                     to_cstr('statusline'),
                                      false,
                                      fillchar,
                                      maximum_cell_count,
+                                     NULL,
                                      NULL,
                                      NULL)
     end

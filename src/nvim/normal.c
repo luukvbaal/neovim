@@ -1555,6 +1555,7 @@ bool do_mouse(oparg_T *oap, int c, int dir, long count, bool fixindent)
   pos_T start_visual;
   bool moved;                   // Has cursor moved?
   bool in_winbar;               // mouse in window bar
+  bool in_numcol;               // mouse in number column
   bool in_status_line;          // mouse in status line
   static bool in_tab_line = false;   // mouse clicked in tab line
   bool in_sep_line;             // mouse in vertical separator line
@@ -1907,11 +1908,12 @@ bool do_mouse(oparg_T *oap, int c, int dir, long count, bool fixindent)
 
   moved = (jump_flags & CURSOR_MOVED);
   in_winbar = (jump_flags & MOUSE_WINBAR);
+  in_numcol = (jump_flags & MOUSE_NUMCOL);
   in_status_line = (jump_flags & IN_STATUS_LINE);
   in_sep_line = (jump_flags & IN_SEP_LINE);
 
-  if ((in_winbar || in_status_line) && is_click) {
-    // Handle click event on window bar or status lin
+  if ((in_winbar || in_status_line || in_numcol) && is_click) {
+    // Handle click event on window bar, statusline or number column
     int click_grid = mouse_grid;
     int click_row = mouse_row;
     int click_col = mouse_col;
@@ -1921,7 +1923,8 @@ bool do_mouse(oparg_T *oap, int c, int dir, long count, bool fixindent)
     }
 
     StlClickDefinition *click_defs = in_status_line ? wp->w_status_click_defs
-                                                    : wp->w_winbar_click_defs;
+                                                    : in_winbar ? wp->w_winbar_click_defs
+                                                                : wp->w_numcol_click_defs;
 
     if (in_status_line && global_stl_height() > 0) {
       // global statusline is displayed for the current window,
@@ -1944,8 +1947,9 @@ bool do_mouse(oparg_T *oap, int c, int dir, long count, bool fixindent)
     }
 
     return false;
-  } else if (in_winbar) {
-    // A drag or release event in the window bar has no side effects.
+  } else if (in_winbar || in_numcol) {
+    // A drag or release event in the window bar and number column has no side
+    // effects.
     return false;
   }
 

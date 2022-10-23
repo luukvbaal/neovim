@@ -2223,9 +2223,11 @@ Dictionary nvim_eval_statusline(String str, Dict(eval_statusline) *opts, Error *
                                buf,
                                sizeof(buf),
                                str.data,
+                               "",
                                false,
                                fillchar,
                                maxwidth,
+                               NULL,
                                hltab_ptr,
                                NULL);
 

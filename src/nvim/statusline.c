@@ -19,6 +19,7 @@
 #include "nvim/highlight_group.h"
 #include "nvim/move.h"
 #include "nvim/option.h"
+#include "nvim/option_defs.h"
 #include "nvim/optionstr.h"
 #include "nvim/statusline.h"
 #include "nvim/ui.h"
@@ -172,19 +173,7 @@ void win_redr_winbar(win_T *wp)
   if (wp->w_winbar_height == 0 || !redrawing()) {
     // Do nothing.
   } else if (*p_wbr != NUL || *wp->w_p_wbr != NUL) {
-    int saved_did_emsg = did_emsg;
-
-    did_emsg = false;
-    win_redr_custom(wp, true, false);
-    if (did_emsg) {
-      // When there is an error disable the winbar, otherwise the
-      // display is messed up with errors and a redraw triggers the problem
-      // again and again.
-      set_string_option_direct("winbar", -1, "",
-                               OPT_FREE | (*wp->w_p_stl != NUL
-                                           ? OPT_LOCAL : OPT_GLOBAL), SID_ERROR);
-    }
-    did_emsg |= saved_did_emsg;
+    win_redr_custom(wp, -1, 0, true, false);
   }
   entered = false;
 }
@@ -214,11 +203,7 @@ void win_redr_ruler(win_T *wp, bool always)
   }
 
   if (*p_ruf && p_ch > 0 && !ui_has(kUIMessages)) {
-    const int called_emsg_before = called_emsg;
-    win_redr_custom(wp, false, true);
-    if (called_emsg > called_emsg_before) {
-      set_string_option_direct("rulerformat", -1, "", OPT_FREE, SID_ERROR);
-    }
+    win_redr_custom(wp, -1, 0, false, true);
     return;
   }
 
@@ -389,7 +374,6 @@ int fillchar_status(int *attr, win_T *wp)
 void redraw_custom_statusline(win_T *wp)
 {
   static bool entered = false;
-  int saved_did_emsg = did_emsg;
 
   // When called recursively return.  This can happen when the statusline
   // contains an expression that triggers a redraw.
@@ -398,28 +382,28 @@ void redraw_custom_statusline(win_T *wp)
   }
   entered = true;
 
-  did_emsg = false;
-  win_redr_custom(wp, false, false);
-  if (did_emsg) {
-    // When there is an error disable the statusline, otherwise the
-    // display is messed up with errors and a redraw triggers the problem
-    // again and again.
-    set_string_option_direct("statusline", -1, "",
-                             OPT_FREE | (*wp->w_p_stl != NUL
-                                         ? OPT_LOCAL : OPT_GLOBAL), SID_ERROR);
-  }
-  did_emsg |= saved_did_emsg;
+  win_redr_custom(wp, -1, 0, false, false);
   entered = false;
+}
+
+/// Allocate or resize the click definitions array if needed.
+static StlClickDefinition *stl_alloc_click_defs(StlClickDefinition *cdp, size_t *size, long width)
+{
+  if (*size < (size_t)width) {
+    xfree(cdp);
+    *size = (size_t)width;
+    cdp = xcalloc(*size, sizeof(StlClickDefinition));
+  }
+  return cdp;
 }
 
 /// Redraw the status line, window bar or ruler of window "wp".
 /// When "wp" is NULL redraw the tab pages line from 'tabline'.
-void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
+/// When row is nonzero redraw the number column from 'numbercolumn'.
+void win_redr_custom(win_T *wp, int row, int attr, bool draw_winbar, bool draw_ruler)
 {
   static bool entered = false;
-  int attr;
   int curattr;
-  int row;
   int col = 0;
   int maxwidth;
   int width;
@@ -429,11 +413,13 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
   char buf[MAXPATHL];
   char *stl;
   char *p;
+  char *opt;
   stl_hlrec_t *hltab;
   StlClickRecord *tabtab;
   int use_sandbox = false;
   win_T *ewp;
   int p_crb_save;
+  bool draw_numcol = false;
   bool is_stl_global = global_stl_height() > 0;
 
   ScreenGrid *grid = &default_grid;
@@ -447,18 +433,33 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
   entered = true;
 
   // setup environment for the task at hand
-  if (wp == NULL) {
+  if (row != -1) {
+    // Use 'numbercolumn' on the passed row.
+    maxwidth = number_width(wp) + 1;
+    draw_numcol = true;
+    opt = "numbercolumn";
+    fillchar = ' ';
+    stl = wp->w_p_nuc;
+    col = wp->w_wincol + win_col_off(wp) - maxwidth;
+    if (row == 0) {
+      stl_clear_click_defs(wp->w_numcol_click_defs, (long)wp->w_numcol_click_defs_size);
+      wp->w_numcol_click_defs = stl_alloc_click_defs(wp->w_numcol_click_defs,
+                                                     &wp->w_numcol_click_defs_size, maxwidth);
+    }
+    row += wp->w_winrow + wp->w_winbar_height;
+  } else if (wp == NULL) {
     // Use 'tabline'.  Always at the first line of the screen.
     stl = p_tal;
     row = 0;
+    opt = "tabline";
     fillchar = ' ';
     attr = HL_ATTR(HLF_TPF);
     maxwidth = Columns;
-    use_sandbox = was_set_insecurely(wp, "tabline", 0);
   } else if (draw_winbar) {
     stl = ((*wp->w_p_wbr != NUL) ? wp->w_p_wbr : p_wbr);
     row = -1;  // row zero is first row of text
     col = 0;
+    opt = "winbar";
     grid = &wp->w_grid;
     grid_adjust(&grid, &row, &col);
 
@@ -469,30 +470,20 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
     fillchar = wp->w_p_fcs_chars.wbr;
     attr = (wp == curwin) ? win_hl_attr(wp, HLF_WBR) : win_hl_attr(wp, HLF_WBRNC);
     maxwidth = wp->w_width_inner;
-    use_sandbox = was_set_insecurely(wp, "winbar", 0);
-
     stl_clear_click_defs(wp->w_winbar_click_defs, (long)wp->w_winbar_click_defs_size);
-    // Allocate / resize the click definitions array for winbar if needed.
-    if (wp->w_winbar_height && wp->w_winbar_click_defs_size < (size_t)maxwidth) {
-      xfree(wp->w_winbar_click_defs);
-      wp->w_winbar_click_defs_size = (size_t)maxwidth;
-      wp->w_winbar_click_defs = xcalloc(wp->w_winbar_click_defs_size, sizeof(StlClickRecord));
-    }
+    wp->w_winbar_click_defs = stl_alloc_click_defs(wp->w_winbar_click_defs,
+                                                   &wp->w_winbar_click_defs_size, maxwidth);
   } else {
     row = is_stl_global ? (Rows - (int)p_ch - 1) : W_ENDROW(wp);
     fillchar = fillchar_status(&attr, wp);
     maxwidth = is_stl_global ? Columns : wp->w_width;
-
     stl_clear_click_defs(wp->w_status_click_defs, (long)wp->w_status_click_defs_size);
-    // Allocate / resize the click definitions array for statusline if needed.
-    if (wp->w_status_click_defs_size < (size_t)maxwidth) {
-      xfree(wp->w_status_click_defs);
-      wp->w_status_click_defs_size = (size_t)maxwidth;
-      wp->w_status_click_defs = xcalloc(wp->w_status_click_defs_size, sizeof(StlClickRecord));
-    }
+    wp->w_status_click_defs = stl_alloc_click_defs(wp->w_status_click_defs,
+                                                   &wp->w_status_click_defs_size, maxwidth);
 
     if (draw_ruler) {
       stl = p_ruf;
+      opt = "rulerformat";
       // advance past any leading group spec - implicit in ru_col
       if (*stl == '%') {
         if (*++stl == '-') {
@@ -519,15 +510,14 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
         fillchar = ' ';
         attr = HL_ATTR(HLF_MSG);
       }
-
-      use_sandbox = was_set_insecurely(wp, "rulerformat", 0);
     } else {
       if (*wp->w_p_stl != NUL) {
         stl = wp->w_p_stl;
+        use_sandbox = OPT_LOCAL;
       } else {
         stl = p_stl;
       }
-      use_sandbox = was_set_insecurely(wp, "statusline", *wp->w_p_stl == NUL ? 0 : OPT_LOCAL);
+      opt = "statusline";
     }
 
     col += is_stl_global ? 0 : wp->w_wincol;
@@ -542,13 +532,30 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
   ewp = wp == NULL ? curwin : wp;
   p_crb_save = ewp->w_p_crb;
   ewp->w_p_crb = false;
+  use_sandbox = was_set_insecurely(wp, opt, use_sandbox);
 
   // Make a copy, because the statusline may include a function call that
   // might change the option value and free the memory.
   stl = xstrdup(stl);
-  width =
-    build_stl_str_hl(ewp, buf, sizeof(buf), stl, use_sandbox,
-                     fillchar, maxwidth, &hltab, &tabtab);
+
+  int truncate = 0;
+  width = build_stl_str_hl(ewp, buf, sizeof(buf),
+                           stl, opt, use_sandbox,
+                           fillchar, maxwidth,
+                           &truncate, &hltab, &tabtab);
+
+  if (draw_numcol) {
+    if (*wp->w_p_nuc == NUL) {
+      // 'numbercolumn' empty due to error, reset width and redraw.
+      wp->w_nrwidth_line_count = 0;
+      wp->w_redr_numcol = true;
+    } else if (truncate && wp->w_nrwidth < 19) {
+      // Avoid truncating 'numbercolumn', widen and redraw.
+      wp->w_nrwidth_width = MIN(19, wp->w_nrwidth_width + truncate);
+      wp->w_redr_numcol = true;
+    }
+  }
+
   xfree(stl);
   ewp->w_p_crb = p_crb_save;
 
@@ -593,9 +600,9 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
 
   // Fill the tab_page_click_defs, w_status_click_defs or w_winbar_click_defs array for clicking
   // in the tab page line, status line or window bar
-  StlClickDefinition *click_defs = (wp == NULL) ? tab_page_click_defs
-                                                : draw_winbar ? wp->w_winbar_click_defs
-                                                              : wp->w_status_click_defs;
+  StlClickDefinition *click_defs = (wp == NULL) ? tab_page_click_defs : draw_winbar
+                                                ? wp->w_winbar_click_defs : draw_numcol
+                                                ? wp->w_numcol_click_defs : wp->w_status_click_defs;
 
   if (click_defs == NULL) {
     goto theend;
@@ -653,8 +660,9 @@ theend:
 /// @param tabtab  Tab clicks definition (can be NULL).
 ///
 /// @return  The final width of the statusline
-int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_sandbox, int fillchar,
-                     int maxwidth, stl_hlrec_t **hltab, StlClickRecord **tabtab)
+int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, char *opt_name,
+                     int use_sandbox, int fillchar, int maxwidth, int *truncate,
+                     stl_hlrec_t **hltab, StlClickRecord **tabtab)
 {
   static size_t stl_items_len = 20;  // Initial value, grows as needed.
   static stl_item_t *stl_items = NULL;
@@ -669,6 +677,7 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
   char *usefmt = fmt;
   const int save_must_redraw = must_redraw;
   const int save_redr_type = curwin->w_redr_type;
+  const int save_did_emsg = did_emsg;
 
   if (stl_items == NULL) {
     stl_items = xmalloc(sizeof(stl_item_t) * stl_items_len);
@@ -735,6 +744,7 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
   int curitem = 0;
   bool prevchar_isflag = true;
   bool prevchar_isitem = false;
+  bool numbercolumn = !strcmp(opt_name, "numbercolumn");
 
   // out_p is the current position in the output buffer
   char *out_p = out;
@@ -1120,7 +1130,12 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
       itemisflag = true;
 
       if (reevaluate) {
-        fmt_p++;
+        if (numbercolumn && (fmt_p[1] == 'l' || fmt_p[1] == 'r')) {
+          // "%l" and "%r" are allowed in "%{}" for numbercolumn
+          reevaluate = false;
+        } else {
+          fmt_p++;
+        }
       }
 
       // Attempt to copy the expression to evaluate into
@@ -1128,7 +1143,16 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
       char *t = out_p;
       while ((*fmt_p != '}' || (reevaluate && fmt_p[-1] != '%'))
              && *fmt_p != NUL && out_p < out_end_p) {
-        *out_p++ = *fmt_p++;
+        if (numbercolumn && *fmt_p == '%' && (fmt_p[1] == 'l' || fmt_p[1] == 'r')) {
+          // Substitute '%l' and '%r' for 'numbercolumn'
+          int i = snprintf(out_p, (outlen - (size_t)(out_p - t)), "%ld",
+                           (long)get_vim_var_nr((fmt_p[1] == 'l')
+                                                ? VV_REDRAW_LNUM : VV_REDRAW_RELNUM));
+          out_p += i;
+          fmt_p += 2;
+        } else {
+          *out_p++ = *fmt_p++;
+        }
       }
       if (*fmt_p != '}') {          // missing '}' or out of space
         break;
@@ -1217,8 +1241,9 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
     }
 
     case STL_LINE:
-      num = (wp->w_buffer->b_ml.ml_flags & ML_EMPTY)
-            ? 0L : (long)(wp->w_cursor.lnum);
+      // Overload %l with v:redraw_lnum for 'numbercolumn'
+      num = numbercolumn ? get_vim_var_nr(VV_REDRAW_LNUM)
+            : (wp->w_buffer->b_ml.ml_flags & ML_EMPTY) ? 0L : (long)(wp->w_cursor.lnum);
       break;
 
     case STL_NUMLINES:
@@ -1310,9 +1335,14 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
 
     case STL_ROFLAG:
     case STL_ROFLAG_ALT:
-      itemisflag = true;
-      if (wp->w_buffer->b_p_ro) {
-        str = (opt == STL_ROFLAG_ALT) ? ",RO" : _("[RO]");
+      // Overload %r with v:redraw_relnum for 'numbercolumn'
+      if (numbercolumn) {
+        num = get_vim_var_nr(VV_REDRAW_RELNUM);
+      } else {
+        itemisflag = true;
+        if (wp->w_buffer->b_p_ro) {
+          str = (opt == STL_ROFLAG_ALT) ? ",RO" : _("[RO]");
+        }
       }
       break;
 
@@ -1600,6 +1630,11 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
     int item_idx = 0;
     char *trunc_p;
 
+    // Return truncated width
+    if (truncate != NULL) {
+      *truncate = width - maxwidth;
+    }
+
     // If there are no items, truncate from beginning
     if (itemcnt == 0) {
       trunc_p = out;
@@ -1802,6 +1837,15 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
   if (updating_screen) {
     must_redraw = save_must_redraw;
     curwin->w_redr_type = save_redr_type;
+  }
+
+  // Check for an error.  If there is one we would loop in redrawing the screen.
+  // Avoid that by making the corresponding option empty. Pass OPT_LOCAL for
+  // 'numbercolumn' and 'statusline' if appropriate.
+  if (did_emsg != save_did_emsg) {
+    const bool statusline = *wp->w_p_stl != NUL && !strcmp(opt_name, "statusline");
+    const int scope = (statusline || numbercolumn) ? OPT_LOCAL : OPT_GLOBAL;
+    set_string_option_direct(opt_name, -1, "", OPT_FREE | scope, SID_ERROR);
   }
 
   return width;

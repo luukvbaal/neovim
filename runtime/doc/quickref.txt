@@ -804,6 +804,7 @@ Short explanation of each option:		*option-list*
 'mousetime'	  'mouset'  max time between mouse double-click
 'nrformats'	  'nf'	    number formats recognized for CTRL-A command
 'number'	  'nu'	    print the line number in front of each line
+'numbercolumn'	  'nuc'	    custom format for the number column
 'numberwidth'	  'nuw'     number of columns used for the line number
 'omnifunc'	  'ofu'     function for filetype-specific completion
 'opendevice'	  'odev'    allow reading/writing devices on MS-Windows

@@ -189,6 +189,8 @@ typedef struct {
 #define w_p_list w_onebuf_opt.wo_list   // 'list'
   int wo_nu;
 #define w_p_nu w_onebuf_opt.wo_nu       // 'number'
+  char *wo_nuc;
+#define w_p_nuc w_onebuf_opt.wo_nuc     // 'numbercolumn'
   int wo_rnu;
 #define w_p_rnu w_onebuf_opt.wo_rnu     // 'relativenumber'
   char *wo_ve;
@@ -1296,6 +1298,7 @@ struct window_S {
   linenr_T w_redraw_bot;            // when != 0: last line needing redraw
   bool w_redr_status;               // if true statusline/winbar must be redrawn
   bool w_redr_border;               // if true border must be redrawn
+  bool w_redr_numcol;               // if true number column must be redrawn
 
   // remember what is shown in the ruler for this window (if 'ruler' set)
   pos_T w_ru_cursor;                // cursor position shown in ruler
@@ -1399,6 +1402,11 @@ struct window_S {
   StlClickDefinition *w_winbar_click_defs;
   // Size of the w_winbar_click_defs array
   size_t w_winbar_click_defs_size;
+
+  // Number column click definitions
+  StlClickDefinition *w_numcol_click_defs;
+  // Size of the w_numcol_click_defs array
+  size_t w_numcol_click_defs_size;
 };
 
 /// Macros defined in Vim, but not in Neovim

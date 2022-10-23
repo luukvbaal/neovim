@@ -1788,6 +1788,12 @@ win_update_start:
       did_update = DID_NONE;
     }
 
+    if (wp->w_redr_numcol) {
+      wp->w_redr_numcol = false;
+      changed_line_abv_curs_win(wp);
+      goto win_update_start;
+    }
+
     if (lnum > buf->b_ml.ml_line_count) {
       eof = true;
       break;

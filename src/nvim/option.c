@@ -2082,6 +2082,9 @@ static char *set_bool_option(const int opt_idx, char_u *const varp, const int va
     if (curwin->w_p_spell) {
       errmsg = did_set_spelllang(curwin);
     }
+  } else if (((int *)varp == &curwin->w_p_nu || (int *)varp == &curwin->w_p_rnu)
+             && *curwin->w_p_nuc != NUL) {  // '(relative)number' + 'numbercolumn'
+    curwin->w_nrwidth_line_count = 0;
   }
 
   if ((int *)varp == &curwin->w_p_arab) {
@@ -3692,6 +3695,9 @@ void unset_global_local_option(char *name, void *from)
     clear_string_option(&((win_T *)from)->w_p_ve);
     ((win_T *)from)->w_ve_flags = 0;
     break;
+  case PV_NUC:
+    clear_string_option(&((win_T *)from)->w_p_nuc);
+    break;
   }
 }
 
@@ -4072,6 +4078,8 @@ static char_u *get_varp(vimoption_T *p)
     return (char_u *)&(curwin->w_p_winhl);
   case PV_WINBL:
     return (char_u *)&(curwin->w_p_winbl);
+  case PV_NUC:
+    return (char_u *)&(curwin->w_p_nuc);
   default:
     iemsg(_("E356: get_varp ERROR"));
   }
@@ -4160,6 +4168,7 @@ void copy_winopt(winopt_T *from, winopt_T *to)
   to->wo_scl = copy_option_val(from->wo_scl);
   to->wo_winhl = copy_option_val(from->wo_winhl);
   to->wo_winbl = from->wo_winbl;
+  to->wo_nuc = copy_option_val(from->wo_nuc);
 
   // Copy the script context so that we know were the value was last set.
   memmove(to->wo_script_ctx, from->wo_script_ctx, sizeof(to->wo_script_ctx));
@@ -4197,6 +4206,7 @@ static void check_winopt(winopt_T *wop)
   check_string_option(&wop->wo_fcs);
   check_string_option(&wop->wo_ve);
   check_string_option(&wop->wo_wbr);
+  check_string_option(&wop->wo_nuc);
 }
 
 /// Free the allocated memory inside a winopt_T.
@@ -4223,6 +4233,7 @@ void clear_winopt(winopt_T *wop)
   clear_string_option(&wop->wo_fcs);
   clear_string_option(&wop->wo_ve);
   clear_string_option(&wop->wo_wbr);
+  clear_string_option(&wop->wo_nuc);
 }
 
 void didset_window_options(win_T *wp, bool valid_cursor)

@@ -582,7 +582,8 @@ void check_for_delay(bool check_msg_scroll)
   }
 }
 
-/// Clear status line, window bar or tab page line click definition table
+/// Clear status line, window bar, tab page line, or number column click
+/// definition table.
 ///
 /// @param[out]  tpcd  Table to clear.
 /// @param[in]  tpcd_size  Size of the table.
@@ -956,16 +957,7 @@ void draw_tabline(void)
 
   // Use the 'tabline' option if it's set.
   if (*p_tal != NUL) {
-    int saved_did_emsg = did_emsg;
-
-    // Check for an error.  If there is one we would loop in redrawing the
-    // screen.  Avoid that by making 'tabline' empty.
-    did_emsg = false;
-    win_redr_custom(NULL, false, false);
-    if (did_emsg) {
-      set_string_option_direct("tabline", -1, "", OPT_FREE, SID_ERROR);
-    }
-    did_emsg |= saved_did_emsg;
+    win_redr_custom(NULL, -1, 0, false, false);
   } else {
     FOR_ALL_TABS(tp) {
       tabcount++;
@@ -1238,11 +1230,20 @@ int number_width(win_T *wp)
   }
   wp->w_nrwidth_line_count = lnum;
 
-  n = 0;
-  do {
-    lnum /= 10;
-    n++;
-  } while (lnum > 0);
+  if (*wp->w_p_nuc != NUL) {
+    // Make a best guess for custom 'numbercolumn' width
+    char buf[IOSIZE];
+    set_vim_var_nr(VV_REDRAW_LNUM, lnum);
+    set_vim_var_nr(VV_REDRAW_RELNUM, wp->w_p_rnu ? wp->w_height_inner : 0);
+    n = MIN(build_stl_str_hl(wp, buf, IOSIZE, wp->w_p_nuc, "numbercolumn",
+                             false, NUL, 0, NULL, NULL, NULL), 20) - 1;
+  } else {
+    n = 0;
+    do {
+      lnum /= 10;
+      n++;
+    } while (lnum > 0);
+  }
 
   // 'numberwidth' gives the minimal width plus one
   if (n < wp->w_p_nuw - 1) {

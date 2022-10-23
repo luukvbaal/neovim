@@ -18,6 +18,8 @@
 #include "nvim/decoration.h"
 #include "nvim/diff.h"
 #include "nvim/drawline.h"
+#include "nvim/drawscreen.h"
+#include "nvim/eval.h"
 #include "nvim/fold.h"
 #include "nvim/grid.h"
 #include "nvim/highlight.h"
@@ -32,6 +34,7 @@
 #include "nvim/sign.h"
 #include "nvim/spell.h"
 #include "nvim/state.h"
+#include "nvim/statusline.h"
 #include "nvim/syntax.h"
 #include "nvim/undo.h"
 #include "nvim/window.h"
@@ -390,23 +393,19 @@ static bool use_cursor_line_nr(win_T *wp, linenr_T lnum, int row, int startrow, 
 
 static inline void get_line_number_str(win_T *wp, linenr_T lnum, char_u *buf, size_t buf_len)
 {
-  long num;
-  char *fmt = "%*ld ";
+  long relnum = (wp->w_p_rnu || *wp->w_p_nuc != NUL) ?
+                labs((long)get_cursor_rel_lnum(wp, lnum)) : 0;
+  long num = (!wp->w_p_rnu || (wp->w_p_nu && !relnum)) ? lnum : relnum;
 
-  if (wp->w_p_nu && !wp->w_p_rnu) {
-    // 'number' + 'norelativenumber'
-    num = (long)lnum;
+  if (*wp->w_p_nuc != NUL) {
+    // 'numbercolumn', set v:redraw variables
+    set_vim_var_nr(VV_REDRAW_LNUM, lnum);
+    set_vim_var_nr(VV_REDRAW_RELNUM, relnum);
+    memset(buf, ' ', (size_t)number_width(wp) + 1);
   } else {
-    // 'relativenumber', don't use negative numbers
-    num = labs((long)get_cursor_rel_lnum(wp, lnum));
-    if (num == 0 && wp->w_p_nu && wp->w_p_rnu) {
-      // 'number' + 'relativenumber'
-      num = lnum;
-      fmt = "%-*ld ";
-    }
+    char *fmt = (wp->w_p_rnu && wp->w_p_nu && !relnum) ? "%-*ld " : "%*ld ";
+    snprintf((char *)buf, buf_len, fmt, number_width(wp), num);
   }
-
-  snprintf((char *)buf, buf_len, fmt, number_width(wp), num);
 }
 
 static int get_line_number_attr(win_T *wp, linenr_T lnum, int row, int startrow, int filler_lines)
@@ -576,6 +575,8 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
 
   bool search_attr_from_match = false;  // if search_attr is from :match
   bool has_decor = false;               // this buffer has decoration
+  bool draw_numcol = false;             // draw custom 'numbercolumn'
+  int numcol_attr;                      // attribute for 'numbercolumn'
   int win_col_offset = 0;               // offset for window columns
 
   char_u buf_fold[FOLD_TEXT_LEN];       // Hold value returned by get_foldtext
@@ -1152,6 +1153,7 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
         if ((wp->w_p_nu || wp->w_p_rnu)
             && (row == startrow + filler_lines
                 || vim_strchr(p_cpo, CPO_NUMCOL) == NULL)) {
+          draw_numcol = *wp->w_p_nuc != NUL;
           // If 'signcolumn' is set to 'number' and a sign is present
           // in 'lnum', then display the sign instead of the line
           // number.
@@ -1191,6 +1193,7 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
               char_attr = sign_num_attr;
             } else {
               char_attr = get_line_number_attr(wp, lnum, row, startrow, filler_lines);
+              numcol_attr = char_attr;
             }
           }
         }
@@ -2687,5 +2690,10 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
 
   kv_destroy(virt_lines);
   xfree(p_extra_free);
+
+  if (draw_numcol) {
+    win_redr_custom(wp, startrow, numcol_attr, false, false);
+  }
+
   return row;
 }
