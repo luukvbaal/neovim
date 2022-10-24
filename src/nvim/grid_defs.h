@@ -1,6 +1,6 @@
 #ifndef NVIM_GRID_DEFS_H
 #define NVIM_GRID_DEFS_H
-///
+////
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
