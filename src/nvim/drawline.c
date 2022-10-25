@@ -342,6 +342,9 @@ static void get_sign_display_info(bool nrcol, win_T *wp, linenr_T lnum, SignText
 
           *pp_extra = extra;
           (*pp_extra)[*n_extrap] = NUL;
+          if (*wp->w_p_nuc != NUL) {
+            memcpy(wp->w_redr_sign_text[sign_idx], *pp_extra, symbol_blen);
+          }
         }
       }
 
@@ -350,6 +353,7 @@ static void get_sign_display_info(bool nrcol, win_T *wp, linenr_T lnum, SignText
       } else {
         *char_attrp = sattr->hl_attr_id;
       }
+      wp->w_redr_sign_attr[sign_idx] = *char_attrp;
     }
   }
 }
@@ -1123,6 +1127,10 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
             char_attr = win_hl_attr(wp, HLF_CLF);
           } else {
             char_attr = win_hl_attr(wp, HLF_FC);
+          }
+          if (*wp->w_p_nuc != NUL) {
+            wp->w_redr_fold_attr = char_attr;
+            memcpy(wp->w_redr_fold_text, p_extra, (size_t)n_extra);
           }
         }
       }

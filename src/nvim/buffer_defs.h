@@ -1299,6 +1299,10 @@ struct window_S {
   bool w_redr_status;               // if true statusline/winbar must be redrawn
   bool w_redr_border;               // if true border must be redrawn
   bool w_redr_numcol;               // if true number column must be redrawn
+  char w_redr_fold_text[10];
+  char w_redr_sign_text[9][5];
+  int w_redr_fold_attr;
+  int w_redr_sign_attr[9];
 
   // remember what is shown in the ruler for this window (if 'ruler' set)
   pos_T w_ru_cursor;                // cursor position shown in ruler

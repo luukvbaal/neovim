@@ -435,12 +435,13 @@ void win_redr_custom(win_T *wp, int row, int attr, bool draw_winbar, bool draw_r
   // setup environment for the task at hand
   if (row != -1) {
     // Use 'numbercolumn' on the passed row.
-    maxwidth = number_width(wp) + 1;
+    maxwidth = number_width(wp) + 1 + win_fdccol_count(wp)
+               + win_signcol_width(wp) * win_signcol_count(wp);
     draw_numcol = true;
     opt = "numbercolumn";
     fillchar = ' ';
     stl = wp->w_p_nuc;
-    col = wp->w_wincol + win_col_off(wp) - maxwidth;
+    col = wp->w_wincol;
     if (row == 0) {
       stl_clear_click_defs(wp->w_numcol_click_defs, (long)wp->w_numcol_click_defs_size);
       wp->w_numcol_click_defs = stl_alloc_click_defs(wp->w_numcol_click_defs,
@@ -544,16 +545,18 @@ void win_redr_custom(win_T *wp, int row, int attr, bool draw_winbar, bool draw_r
                            fillchar, maxwidth,
                            &truncate, &hltab, &tabtab);
 
-  if (draw_numcol) {
-    if (*wp->w_p_nuc == NUL) {
-      // 'numbercolumn' empty due to error, reset width and redraw.
-      wp->w_nrwidth_line_count = 0;
-      wp->w_redr_numcol = true;
-    } else if (truncate && wp->w_nrwidth < 19) {
+  if (draw_numcol && (*wp->w_p_nuc == NUL || (truncate && wp->w_nrwidth < 19))) {
+    if (truncate) {
       // Avoid truncating 'numbercolumn', widen and redraw.
       wp->w_nrwidth_width = MIN(19, wp->w_nrwidth_width + truncate);
-      wp->w_redr_numcol = true;
+    } else if (*wp->w_p_nuc == NUL) {
+      // 'numbercolumn' empty due to error, reset width and redraw.
+      wp->w_nrwidth_line_count = 0;
     }
+    xfree(stl);
+    ewp->w_p_crb = p_crb_save;
+    wp->w_redr_numcol = true;
+    goto theend;
   }
 
   xfree(stl);
@@ -1351,6 +1354,38 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, char *opt_n
       itemisflag = true;
       if (wp->w_buffer->b_help) {
         str = (opt == STL_HELPFLAG_ALT) ? ",HLP" : _("[Help]");
+      }
+      break;
+
+    case STL_FOLDCOL:    // 'Q' for 'signcolumn'
+    case STL_SIGNCOL:    // 's' for 'signcolumn'
+      *buf_tmp = NUL;
+      if (opt == STL_FOLDCOL && *wp->w_redr_fold_text != NUL) {
+        stl_items[curitem].type = Highlight;
+        stl_items[curitem].start = out_p;
+        stl_items[curitem].minwid = -wp->w_redr_fold_attr;
+        STRCAT(buf_tmp, wp->w_redr_fold_text);
+        *wp->w_redr_fold_text = NUL;
+      } else {
+        for (int i = 0; i <= 9; i++) {
+          if (*wp->w_redr_sign_text[i] == NUL) {
+            break;
+          }
+          stl_items[curitem].type = Highlight;
+          stl_items[curitem].start = out_p + STRLEN(buf_tmp);
+          stl_items[curitem].minwid = -wp->w_redr_sign_attr[i];
+          STRCAT(buf_tmp, wp->w_redr_sign_text[i]);
+          *wp->w_redr_sign_text[i] = NUL;
+          curitem++;
+        }
+      }
+
+      if (*buf_tmp != NUL) {
+        str = buf_tmp;
+        stl_items[curitem].type = Highlight;
+        stl_items[curitem].start = out_p + STRLEN(buf_tmp);
+        stl_items[curitem].minwid = 0;
+        curitem++;
       }
       break;
 

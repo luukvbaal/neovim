@@ -334,6 +334,8 @@ enum {
   STL_ALTPERCENT      = 'P',  ///< Percentage as TOP BOT ALL or NN%.
   STL_ARGLISTSTAT     = 'a',  ///< Argument list status as (x of y).
   STL_PAGENUM         = 'N',  ///< Page number (when printing).
+  STL_SIGNCOL         = 's',  ///< Sign column for v:redraw_lnum
+  STL_FOLDCOL         = 'Q',  ///< Fold column for v:redraw_lnum
   STL_VIM_EXPR        = '{',  ///< Start of expression to substitute.
   STL_SEPARATE        = '=',  ///< Separation between alignment sections.
   STL_TRUNCMARK       = '<',  ///< Truncation mark if line is too long.
@@ -352,7 +354,7 @@ enum {
     STL_PREVIEWFLAG, STL_PREVIEWFLAG_ALT, STL_MODIFIED, STL_MODIFIED_ALT, \
     STL_QUICKFIX, STL_PERCENTAGE, STL_ALTPERCENT, STL_ARGLISTSTAT, STL_PAGENUM, \
     STL_VIM_EXPR, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL, STL_HIGHLIGHT, \
-    STL_TABPAGENR, STL_TABCLOSENR, STL_CLICK_FUNC, \
+    STL_TABPAGENR, STL_TABCLOSENR, STL_CLICK_FUNC, STL_SIGNCOL, STL_FOLDCOL, \
     0, \
   })
 
