@@ -431,6 +431,42 @@ static int get_line_number_attr(win_T *wp, linenr_T lnum, int row, int startrow,
   return win_hl_attr(wp, HLF_N);
 }
 
+static void get_line_number_display_info(win_T *wp, linenr_T lnum, int row, int startrow,
+                                         int filler_lines, int *c_extrap, int *c_finalp,
+                                         char_u *extra, size_t extra_size, char_u **pp_extra,
+                                         int *n_extrap, int *char_attrp, int sign_num_attr)
+{
+  if (row == startrow + filler_lines) {
+    get_line_number_str(wp, lnum, extra, extra_size);
+    if (wp->w_skipcol > 0) {
+      for (*pp_extra = extra; **pp_extra == ' '; (*pp_extra)++) {
+        **pp_extra = (char_u)'-';
+      }
+    }
+    if (wp->w_p_rl) {  // reverse line numbers
+      // like rl_mirror(), but keep the space at the end
+      char_u *p2 = (char_u *)skipwhite((char *)extra);
+      p2 = (char_u *)skiptowhite((char *)p2) - 1;
+      for (char_u *p1 = (char_u *)skipwhite((char *)extra); p1 < p2; p1++, p2--) {
+        const char_u t = *p1;
+        *p1 = *p2;
+        *p2 = t;
+      }
+    }
+    *pp_extra = extra;
+    *c_extrap = NUL;
+  } else {
+    *c_extrap = ' ';
+  }
+  *c_finalp = NUL;
+  *n_extrap = number_width(wp) + 1;
+  if (sign_num_attr > 0) {
+    *char_attrp = sign_num_attr;
+  } else {
+    *char_attrp = get_line_number_attr(wp, lnum, row, startrow, filler_lines);
+  }
+}
+
 static void apply_cursorline_highlight(win_T *wp, linenr_T lnum, int *line_attr, int *cul_attr,
                                        int *line_attr_lowprio)
 {
@@ -1166,35 +1202,9 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
                                   sign_cul_attr);
           } else {
             // Draw the line number (empty space after wrapping).
-            if (row == startrow + filler_lines) {
-              get_line_number_str(wp, lnum, (char_u *)extra, sizeof(extra));
-              if (wp->w_skipcol > 0) {
-                for (p_extra = extra; *p_extra == ' '; p_extra++) {
-                  *p_extra = '-';
-                }
-              }
-              if (wp->w_p_rl) {                       // reverse line numbers
-                // like rl_mirror(), but keep the space at the end
-                char_u *p2 = (char_u *)skipwhite((char *)extra);
-                p2 = (char_u *)skiptowhite((char *)p2) - 1;
-                for (char_u *p1 = (char_u *)skipwhite((char *)extra); p1 < p2; p1++, p2--) {
-                  const char_u t = *p1;
-                  *p1 = *p2;
-                  *p2 = t;
-                }
-              }
-              p_extra = extra;
-              c_extra = NUL;
-            } else {
-              c_extra = ' ';
-            }
-            c_final = NUL;
-            n_extra = number_width(wp) + 1;
-            if (sign_num_attr > 0) {
-              char_attr = sign_num_attr;
-            } else {
-              char_attr = get_line_number_attr(wp, lnum, row, startrow, filler_lines);
-            }
+            get_line_number_display_info(wp, lnum, row, startrow, filler_lines,
+                                         &c_extra, &c_final, extra, sizeof(extra),
+                                         &p_extra, &n_extra, &char_attr, sign_num_attr);
           }
         }
       }
