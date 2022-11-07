@@ -214,11 +214,7 @@ void win_redr_ruler(win_T *wp, bool always)
   }
 
   if (*p_ruf && p_ch > 0 && !ui_has(kUIMessages)) {
-    const int called_emsg_before = called_emsg;
     win_redr_custom(wp, false, true);
-    if (called_emsg > called_emsg_before) {
-      set_string_option_direct("rulerformat", -1, "", OPT_FREE, SID_ERROR);
-    }
     return;
   }
 
@@ -389,7 +385,6 @@ int fillchar_status(int *attr, win_T *wp)
 void redraw_custom_statusline(win_T *wp)
 {
   static bool entered = false;
-  int saved_did_emsg = did_emsg;
 
   // When called recursively return.  This can happen when the statusline
   // contains an expression that triggers a redraw.
@@ -398,17 +393,7 @@ void redraw_custom_statusline(win_T *wp)
   }
   entered = true;
 
-  did_emsg = false;
   win_redr_custom(wp, false, false);
-  if (did_emsg) {
-    // When there is an error disable the statusline, otherwise the
-    // display is messed up with errors and a redraw triggers the problem
-    // again and again.
-    set_string_option_direct("statusline", -1, "",
-                             OPT_FREE | (*wp->w_p_stl != NUL
-                                         ? OPT_LOCAL : OPT_GLOBAL), SID_ERROR);
-  }
-  did_emsg |= saved_did_emsg;
   entered = false;
 }
 
@@ -429,9 +414,10 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
   char buf[MAXPATHL];
   char *stl;
   char *p;
+  char *opt_name;
+  int opt_scope = 0;
   stl_hlrec_t *hltab;
   StlClickRecord *tabtab;
-  int use_sandbox = false;
   win_T *ewp;
   int p_crb_save;
   bool is_stl_global = global_stl_height() > 0;
@@ -454,7 +440,7 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
     fillchar = ' ';
     attr = HL_ATTR(HLF_TPF);
     maxwidth = Columns;
-    use_sandbox = was_set_insecurely(wp, "tabline", 0);
+    opt_name = "tabline";
   } else if (draw_winbar) {
     stl = ((*wp->w_p_wbr != NUL) ? wp->w_p_wbr : p_wbr);
     row = -1;  // row zero is first row of text
@@ -493,6 +479,7 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
 
     if (draw_ruler) {
       stl = p_ruf;
+      opt_name = "rulerformat";
       // advance past any leading group spec - implicit in ru_col
       if (*stl == '%') {
         if (*++stl == '-') {
@@ -519,15 +506,14 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
         fillchar = ' ';
         attr = HL_ATTR(HLF_MSG);
       }
-
-      use_sandbox = was_set_insecurely(wp, "rulerformat", 0);
     } else {
+      opt_name = "statusline";
       if (*wp->w_p_stl != NUL) {
         stl = wp->w_p_stl;
+        opt_scope = OPT_LOCAL;
       } else {
         stl = p_stl;
       }
-      use_sandbox = was_set_insecurely(wp, "statusline", *wp->w_p_stl == NUL ? 0 : OPT_LOCAL);
     }
 
     col += is_stl_global ? 0 : wp->w_wincol;
@@ -546,9 +532,8 @@ void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
   // Make a copy, because the statusline may include a function call that
   // might change the option value and free the memory.
   stl = xstrdup(stl);
-  width =
-    build_stl_str_hl(ewp, buf, sizeof(buf), stl, use_sandbox,
-                     fillchar, maxwidth, &hltab, &tabtab);
+  width = build_stl_str_hl(ewp, buf, sizeof(buf), stl, opt_name,
+                           opt_scope, fillchar, maxwidth, &hltab, &tabtab);
   xfree(stl);
   ewp->w_p_crb = p_crb_save;
 
@@ -646,7 +631,8 @@ theend:
 ///             Note: This should not be NameBuff
 /// @param outlen  The length of the output buffer
 /// @param fmt  The statusline format string
-/// @param use_sandbox  Use a sandboxed environment when evaluating fmt
+/// @param opt_name  The option name corresponding to "fmt"
+/// @param opt_scope  The scope corresponding to "opt_name"
 /// @param fillchar  Character to use when filling empty space in the statusline
 /// @param maxwidth  The maximum width to make the statusline
 /// @param hltab  HL attributes (can be NULL)
@@ -669,6 +655,10 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
   char *usefmt = fmt;
   const int save_must_redraw = must_redraw;
   const int save_redr_type = curwin->w_redr_type;
+  // TODO(Bram): find out why using called_emsg_before makes tests fail, does it
+  // matter?
+  // const int        called_emsg_before = called_emsg;
+  const int did_emsg_before = did_emsg;
 
   if (stl_items == NULL) {
     stl_items = xmalloc(sizeof(stl_item_t) * stl_items_len);
@@ -681,6 +671,9 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
 
     stl_separator_locations = xmalloc(sizeof(int) * stl_items_len);
   }
+
+  // if "fmt" was set insecurely it needs to be evaluated in the sandbox
+  int use_sandbox = was_set_insecurely(wp, opt_name, opt_scope);
 
   // When the format starts with "%!" then evaluate it as an expression and
   // use the result as the actual format string.
@@ -1802,6 +1795,16 @@ int build_stl_str_hl(win_T *wp, char *out, size_t outlen, char *fmt, int use_san
   if (updating_screen) {
     must_redraw = save_must_redraw;
     curwin->w_redr_type = save_redr_type;
+  }
+
+  // Check for an error.  If there is one the display will be messed up and
+  // might loop redrawing.  Avoid that by making the corresponding option
+  // empty.
+  // TODO(Bram): find out why using called_emsg_before makes tests fail, does it
+  // matter?
+  // if (called_emsg > called_emsg_before)
+  if (did_emsg > did_emsg_before) {
+    set_string_option_direct(opt_name, -1, "", OPT_FREE | opt_scope, SID_ERROR);
   }
 
   return width;
