@@ -68,6 +68,7 @@
 #include "nvim/spellfile.h"
 #include "nvim/spellsuggest.h"
 #include "nvim/state.h"
+#include "nvim/statusline.h"
 #include "nvim/strings.h"
 #include "nvim/syntax.h"
 #include "nvim/tag.h"
@@ -1977,13 +1978,7 @@ void pop_showcmd(void)
 
 static void display_showcmd(void)
 {
-  if (p_ch == 0 && !ui_has(kUIMessages)) {
-    // TODO(bfredl): would be nice to show in global statusline, perhaps
-    return;
-  }
-
-  int len;
-  len = (int)strlen(showcmd_buf);
+  int len = (int)strlen(showcmd_buf);
   showcmd_is_clear = (len == 0);
 
   if (ui_has(kUIMessages)) {
@@ -1999,20 +1994,26 @@ static void display_showcmd(void)
     return;
   }
 
-  msg_grid_validate();
-  int showcmd_row = Rows - 1;
-  grid_puts_line_start(&msg_grid_adj, showcmd_row);
+  if (*p_sloc == 's') {
+    win_redr_status(curwin);
+  } else if (*p_sloc == 't') {
+    draw_tabline();
+  } else {  // 'showcmdloc' is "last" or empty
+    msg_grid_validate();
+    int showcmd_row = Rows - 1;
+    grid_puts_line_start(&msg_grid_adj, showcmd_row);
 
-  if (!showcmd_is_clear) {
-    grid_puts(&msg_grid_adj, showcmd_buf, showcmd_row, sc_col,
-              HL_ATTR(HLF_MSG));
+    if (!showcmd_is_clear) {
+      grid_puts(&msg_grid_adj, showcmd_buf, showcmd_row, sc_col,
+                HL_ATTR(HLF_MSG));
+    }
+
+    // clear the rest of an old message by outputting up to SHOWCMD_COLS spaces
+    grid_puts(&msg_grid_adj, (char *)"          " + len, showcmd_row,
+              sc_col + len, HL_ATTR(HLF_MSG));
+
+    grid_puts_line_flush(false);
   }
-
-  // clear the rest of an old message by outputting up to SHOWCMD_COLS spaces
-  grid_puts(&msg_grid_adj, (char *)"          " + len, showcmd_row,
-            sc_col + len, HL_ATTR(HLF_MSG));
-
-  grid_puts_line_flush(false);
 }
 
 /// When "check" is false, prepare for commands that scroll the window.

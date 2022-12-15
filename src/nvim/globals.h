@@ -1100,4 +1100,10 @@ EXTERN bool skip_win_fix_scroll INIT(= false);
 /// Skip update_topline() call while executing win_fix_scroll().
 EXTERN bool skip_update_topline INIT(= false);
 
+// columns needed by shown command
+#define SHOWCMD_COLS 10
+// 'showcmd' buffer shared between normal.c and statusline.c
+#define SHOWCMD_BUFLEN (SHOWCMD_COLS + 1 + 30)
+EXTERN char_u showcmd_buf[SHOWCMD_BUFLEN];
+
 #endif  // NVIM_GLOBALS_H
