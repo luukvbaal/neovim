@@ -2,8 +2,10 @@ local helpers = require('test.functional.helpers')(after_each)
 local Screen = require('test.functional.ui.screen')
 local clear = helpers.clear
 local command = helpers.command
+local exec = helpers.exec_lua
 local eq = helpers.eq
 local eval = helpers.eval
+local exec = helpers.exec_lua
 local meths = helpers.meths
 local pcall_err = helpers.pcall_err
 
@@ -183,7 +185,7 @@ describe('statuscolumn', function()
   end)
 
   it('works with wrapped lines, signs and folds', function()
-    command("set stc=%C%s%=%{v:wrap?'':v:lnum}│\\ ")
+    command("set stc=%C%s%=%{v:virtnum?'':v:lnum}│\\ ")
     command("call setline(1,repeat([repeat('aaaaa',10)],16))")
     screen:set_default_attr_ids({
       [0] = {bold = true, foreground = Screen.colors.Blue},
@@ -234,7 +236,7 @@ describe('statuscolumn', function()
     ]])
     command('norm zf$')
     -- Check that alignment works properly with signs after %=
-    command("set stc=%C%=%{v:wrap?'':v:lnum}│%s\\ ")
+    command("set stc=%C%=%{v:virtnum?'':v:lnum}│%s\\ ")
     screen:expect([[
       {2: }{1: 4│>>}{2:  }{1: }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {2: }{1:  │}{2:    }{1: }aaaaaa                                      |
@@ -304,7 +306,7 @@ describe('statuscolumn', function()
       {2: }{1: 2│}{2:    }{1: }aaaaaa                                      |
                                                            |
     ]])
-    command("set stc=%C%=\\ %{v:wrap?'':v:relnum}│%s\\ ")
+    command([[set stc=%C%=\ %{v:virtnum?'':v:relnum}│%s\ ]])
     screen:expect([[
       {2: }{1: 4│>>}{2:  }{1: }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {2: }{1:  │}{2:    }{1: }aaaaaa                                      |
@@ -344,6 +346,31 @@ describe('statuscolumn', function()
       {2: }{1:  │}{2:                  }{1: }aaaaaaaaaaaaaaaaaaaa          |
       {2: }{1: 2│}{2:                  }{1: }aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
       {2: }{1:  │}{2:                  }{1: }aaaaaaaaaaaaaaaaaaaa          |
+                                                           |
+    ]])
+    -- Status column is re-evaluated for virt_lines, buffer line, and wrapped line
+    exec([[
+      local ns = vim.api.nvim_create_namespace("ns")
+      vim.api.nvim_buf_set_extmark(0, ns, 4, 0, {
+        virt_lines = {{{"virt_line", ""}}, {{"virt_line", ""}}, {{"virt_line", ""}}}
+      })
+    ]])
+    command('set foldcolumn=0 signcolumn=no')
+    command([[set stc=%{v:virtnum<0?'virtual':(!v:virtnum?'buffer':'wrapped')}%=%{'\ '.v:virtnum}]])
+    screen:expect([[
+      {1:buffer  0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {1:wrapped 1}aaaaaa                                      |
+      {1:buffer  0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {1:wrapped 1}aaaaaa                                      |
+      {1:virtual-3}virt_line                                   |
+      {1:virtual-3}virt_line                                   |
+      {1:virtual-3}virt_line                                   |
+      {1:buffer  0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {1:wrapped 1}aaaaaa                                      |
+      {1:buffer  0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|
+      {1:wrapped 1}aaaaaa                                      |
+      {4:buffer  0}{5:^+--  1 line: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}|
+      {1:buffer  0}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa{0:@@@}|
                                                            |
     ]])
   end)

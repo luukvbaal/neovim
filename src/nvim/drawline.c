@@ -400,14 +400,15 @@ static int get_sign_attrs(buf_T *buf, linenr_T lnum, SignTextAttrs *sattrs, int 
 
 /// Prepare and build the 'statuscolumn' string for line "lnum" in window "wp".
 /// Fill "stcp" with the built status column string and attributes.
+/// This can be called three times per win_line(), once for virt_lines, once for
+/// the start of the buffer line "lnum" and once for the wrapped lines.
 ///
 /// @param[out] stcp  Status column attributes
 static void get_statuscol_str(win_T *wp, linenr_T lnum, int row, int startrow, int filler_lines,
                               int cul_attr, int sign_num_attr, int sign_cul_attr, char_u *extra,
                               foldinfo_T foldinfo, SignTextAttrs *sattrs, statuscol_T *stcp)
 {
-  long relnum = 0;
-  bool wrapped = row != startrow + filler_lines;
+  long relnum = -1;
   bool use_cul = use_cursor_line_sign(wp, lnum);
 
   // Set num, fold and sign text and attrs, empty when wrapped
@@ -424,16 +425,19 @@ static void get_statuscol_str(win_T *wp, linenr_T lnum, int row, int startrow, i
   }
 
   int i = 0;
+  int virtnum = row - startrow - filler_lines;
+
   for (; i < wp->w_scwidth; i++) {
-    SignTextAttrs *sattr = wrapped ? NULL : sign_get_attr(i, sattrs, wp->w_scwidth);
+    SignTextAttrs *sattr = virtnum ? NULL : sign_get_attr(i, sattrs, wp->w_scwidth);
     stcp->sign_text[i] = sattr && sattr->text ? sattr->text : "  ";
     stcp->sign_attr[i] = sattr ? (use_cul && sign_cul_attr ? sign_cul_attr : sattr->hl_attr_id)
                                : win_hl_attr(wp, use_cul ? HLF_CLS : HLF_SC);
   }
   stcp->sign_text[i] = NULL;
+  set_vim_var_nr(VV_VIRTNUM, virtnum);
 
-  int width = build_statuscol_str(wp, row == startrow, wrapped, lnum, relnum,
-                                  stcp->width, ' ', stcp->text, &stcp->hlrec, stcp);
+  int width = build_statuscol_str(wp, lnum, relnum, stcp->width,
+                                  ' ', stcp->text, &stcp->hlrec, stcp);
   // Force a redraw in case of error or when truncated
   if (*wp->w_p_stc == NUL || (stcp->truncate > 0 && wp->w_nrwidth < MAX_NUMBERWIDTH)) {
     if (stcp->truncate) {  // Avoid truncating 'statuscolumn'
@@ -2819,7 +2823,7 @@ int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, bool nochange, 
         need_showbreak = true;
       }
       if (statuscol.draw) {
-        if (row == startrow + 1 || row == startrow + filler_lines) {
+        if (row == startrow + filler_lines + 1 || row == startrow + filler_lines) {
           // Re-evaluate 'statuscolumn' for the first wrapped row and non filler line
           statuscol.textp = NULL;
         } else {  // Otherwise just reset the text/hlrec pointers
