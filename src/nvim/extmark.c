@@ -56,7 +56,7 @@
 /// must not be used during iteration!
 void extmark_set(buf_T *buf, uint32_t ns_id, uint32_t *idp, int row, colnr_T col, int end_row,
                  colnr_T end_col, Decoration *decor, bool right_gravity, bool end_right_gravity,
-                 ExtmarkOp op, Error *err)
+                 uint16_t type, ExtmarkOp op, Error *err)
 {
   uint32_t *ns = map_put_ref(uint32_t, uint32_t)(buf->b_extmark_ns, ns_id, NULL, NULL);
   uint32_t id = idp ? *idp : 0;
@@ -103,6 +103,7 @@ void extmark_set(buf_T *buf, uint32_t ns_id, uint32_t *idp, int row, colnr_T col
             old_mark.decor_full = NULL;
           }
           old_mark.flags = 0;
+          old_mark.type = type;
           if (decor_full) {
             old_mark.decor_full = decor;
           } else if (decor) {
@@ -125,7 +126,7 @@ void extmark_set(buf_T *buf, uint32_t ns_id, uint32_t *idp, int row, colnr_T col
     }
   }
 
-  MTKey mark = { { row, col }, ns_id, id, 0,
+  MTKey mark = { { row, col }, ns_id, id, 0, type,
                  mt_flags(right_gravity, decor_level), 0, NULL };
   if (decor_full) {
     mark.decor_full = decor;
@@ -363,29 +364,9 @@ next_mark:
 static void push_mark(ExtmarkInfoArray *array, uint32_t ns_id, ExtmarkType type_filter, MTKey mark,
                       MTPos end_pos, bool end_right)
 {
-  if (!(ns_id == UINT32_MAX || mark.ns == ns_id)) {
+  if (!(ns_id == UINT32_MAX || mark.ns == ns_id)
+      || (type_filter && !(mark.type & type_filter))) {
     return;
-  }
-  uint16_t type_flags = kExtmarkNone;
-  if (type_filter != kExtmarkNone) {
-    Decoration *decor = mark.decor_full;
-    if (decor && (decor->sign_text || decor->number_hl_id)) {
-      type_flags |= kExtmarkSign;
-    }
-    if (decor && decor->virt_text.size) {
-      type_flags |= kExtmarkVirtText;
-    }
-    if (decor && decor->virt_lines.size) {
-      type_flags |= kExtmarkVirtLines;
-    }
-    if ((decor && (decor->line_hl_id || decor->cursorline_hl_id))
-        || mark.hl_id) {
-      type_flags |= kExtmarkHighlight;
-    }
-
-    if (!(type_flags & type_filter)) {
-      return;
-    }
   }
 
   kv_push(*array, ((ExtmarkInfo) { .ns_id = mark.ns,

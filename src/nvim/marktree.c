@@ -2006,7 +2006,7 @@ static void marktree_itr_fix_pos(MarkTree *b, MarkTreeIter *itr)
 void marktree_put_test(MarkTree *b, uint32_t ns, uint32_t id, int row, int col, bool right_gravity,
                        int end_row, int end_col, bool end_right)
 {
-  MTKey key = { { row, col }, ns, id, 0,
+  MTKey key = { { row, col }, ns, id, 0, 0,
                 mt_flags(right_gravity, 0), 0, NULL };
   marktree_put(b, key, end_row, end_col, end_right);
 }

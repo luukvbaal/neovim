@@ -58,6 +58,7 @@ typedef struct {
   uint32_t ns;
   uint32_t id;
   int32_t hl_id;
+  uint16_t type;
   uint16_t flags;
   uint16_t priority;
   Decoration *decor_full;
@@ -69,7 +70,7 @@ typedef struct {
   bool end_right_gravity;
 } MTPair;
 
-#define MT_INVALID_KEY (MTKey) { { -1, -1 }, 0, 0, 0, 0, 0, NULL }
+#define MT_INVALID_KEY (MTKey) { { -1, -1 }, 0, 0, 0, 0, 0, 0, NULL }
 
 #define MT_FLAG_REAL (((uint16_t)1) << 0)
 #define MT_FLAG_END (((uint16_t)1) << 1)

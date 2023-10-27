@@ -618,6 +618,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     col2 = (int)val;
   }
 
+  uint16_t type = kExtmarkNone;
   // uncrustify:off
 
   // TODO(bfredl): keyset type alias for hl_group? (nil|int|string)
@@ -643,6 +644,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
         goto error;
       }
       has_decor = true;
+      type |= (hls[j].dest == &decor.number_hl_id) ? kExtmarkSign : kExtmarkHighlight;
     }
   }
 
@@ -657,6 +659,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
 
   if (HAS_KEY(opts, set_extmark, virt_text)) {
     decor.virt_text = parse_virt_text(opts->virt_text, err, &decor.virt_text_width);
+    type |= kExtmarkVirtText;
     has_decor = true;
     if (ERROR_SET(err)) {
       goto error;
@@ -723,6 +726,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
         goto error;
       }
       has_decor = true;
+      type |= kExtmarkVirtLines;
     }
   }
 
@@ -740,6 +744,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
                "sign_text", "", {
       goto error;
     });
+    type |= kExtmarkSign;
     has_decor = true;
   }
 
@@ -825,7 +830,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
 
     extmark_set(buf, (uint32_t)ns_id, &id, (int)line, (colnr_T)col, line2, col2,
                 has_decor ? &decor : NULL, right_gravity, end_right_gravity,
-                kExtmarkNoUndo, err);
+                type, kExtmarkNoUndo, err);
     if (ERROR_SET(err)) {
       goto error;
     }
@@ -952,7 +957,7 @@ Integer nvim_buf_add_highlight(Buffer buffer, Integer ns_id, String hl_group, In
   extmark_set(buf, ns, NULL,
               (int)line, (colnr_T)col_start,
               end_line, (colnr_T)col_end,
-              &decor, true, false, kExtmarkNoUndo, NULL);
+              &decor, true, false, kExtmarkHighlight, kExtmarkNoUndo, NULL);
   return ns_id;
 }
 

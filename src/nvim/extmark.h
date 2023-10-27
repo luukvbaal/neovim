@@ -77,11 +77,11 @@ typedef enum {
 } UndoObjectType;
 
 typedef enum {
-  kExtmarkNone = 0x1,
-  kExtmarkSign = 0x2,
-  kExtmarkVirtText = 0x4,
-  kExtmarkVirtLines = 0x8,
-  kExtmarkHighlight = 0x10,
+  kExtmarkNone = 0x0,
+  kExtmarkSign = 0x1,
+  kExtmarkVirtText = 0x2,
+  kExtmarkVirtLines = 0x4,
+  kExtmarkHighlight = 0x8,
 } ExtmarkType;
 
 // TODO(bfredl): reduce the number of undo action types
