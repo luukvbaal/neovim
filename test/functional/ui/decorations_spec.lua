@@ -4843,6 +4843,34 @@ l5
                           |
     ]]}
   end)
+
+  it('correct width when adding and removing multiple signs', function()
+    screen:try_resize(20, 4)
+    insert(example_test3)
+    feed('gg')
+    command([[
+      let ns = nvim_create_namespace('')
+      call nvim_buf_set_extmark(0, ns, 0, 0, {'sign_text':'S1', 'end_row':3})
+      let s1 = nvim_buf_set_extmark(0, ns, 2, 0, {'sign_text':'S2', 'end_row':4})
+      let s2 = nvim_buf_set_extmark(0, ns, 5, 0, {'sign_text':'S3'})
+      let s3 = nvim_buf_set_extmark(0, ns, 6, 0, {'sign_text':'S3'})
+      let s4 = nvim_buf_set_extmark(0, ns, 5, 0, {'sign_text':'S3'})
+      let s5 = nvim_buf_set_extmark(0, ns, 6, 0, {'sign_text':'S3'})
+      redraw!
+      call nvim_buf_del_extmark(0, ns, s2)
+      call nvim_buf_del_extmark(0, ns, s3)
+      call nvim_buf_del_extmark(0, ns, s4)
+      call nvim_buf_del_extmark(0, ns, s5)
+      redraw!
+      call nvim_buf_del_extmark(0, ns, s1)
+    ]])
+    screen:expect{grid=[[
+      S1^l1                |
+      S1l2                |
+      S1l3                |
+                          |
+    ]]}
+  end)
 end)
 
 describe('decorations: virt_text', function()

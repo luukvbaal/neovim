@@ -799,37 +799,54 @@ static void buf_signcols_validate_row(buf_T *buf, int count, int add)
   // If "count" is greater than current max, set it and reset "max_count".
   if (count > buf->b_signcols.max) {
     buf->b_signcols.max = count;
-    buf->b_signcols.max_count = 0;
+    buf->b_signcols.max_count = 1;
     buf->b_signcols.resized = true;
-  }
-  // If row has or had "max" signs, adjust "max_count" with sign of "add".
-  if (count == buf->b_signcols.max - (add < 0 ? -add : 0)) {
+  } else if (count == buf->b_signcols.max - (add < 0 ? -add : 0)) {
+    // If row has or had "max" signs, adjust "max_count" with sign of "add".
     buf->b_signcols.max_count += (add > 0) - (add < 0);
   }
 }
 
 /// Validate a range by counting the number of overlapping signs and adjusting
 /// "b_signcols" accordingly.
-static void buf_signcols_validate_range(buf_T *buf, int row1, int row2, int add)
+static void buf_signcols_validate_range(buf_T *buf, int row1, int row2, int del, int *add)
 {
-  if (-add == buf->b_signcols.max) {
-    buf->b_signcols.max_count -= (row2 + 1 - row1);
-    return;  // max signs were removed from the range, no need to count.
+  if (add) {
+    int row0 = row1;
+    while (add[row1 - row0] == 0) {
+      if (row1 == row2) {
+        return;  // entire range has no change
+      }
+      row1++;
+    }
+
+    int maxdel = 0;
+    for (int i = del ? row2 : row1; i <= row2; i++) {
+      if (-add[i - row0] > 0 && -add[i - row0] == buf->b_signcols.max) {
+        maxdel++;           // max signs deleted from this row
+        add[i - row0] = 0;  // no need to validate this row later
+      }
+    }
+    buf->b_signcols.max_count -= maxdel;
+
+    if (maxdel == (row2 + 1 - row1)) {
+      return;  // max signs deleted in entire range
+    }
   }
 
-  int currow = row1;
+  // Allocate an array of integers holding the number of signs in the range.
+  assert(row2 >= row1);
+  int *count = xcalloc(sizeof(int), (size_t)(row2 + 1 - row1));
+
   MTPair pair = { 0 };
   MarkTreeIter itr[1];
-
-  // Allocate an array of integers holding the overlapping signs in the range.
-  assert(row2 >= row1);
-  int *overlap = xcalloc(sizeof(int), (size_t)(row2 + 1 - row1));
-
-  // First find the number of overlapping signs at "row1".
-  marktree_itr_get_overlap(buf->b_marktree, currow, 0, itr);
+  // First increment count array for signs that overlap row1 (and beyond).
+  marktree_itr_get_overlap(buf->b_marktree, row1, 0, itr);
   while (marktree_itr_step_overlap(buf->b_marktree, itr, &pair)) {
-    if (!mt_invalid(pair.start) && pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) {
-      overlap[0]++;
+    if ((pair.start.flags & MT_FLAG_DECOR_SIGNTEXT) && !mt_invalid(pair.start)) {
+      for (int i = row1; i <= MIN(row2, pair.end_pos.row); i++) {
+        count[i - row1]++;
+      }
     }
   }
 
@@ -839,23 +856,25 @@ static void buf_signcols_validate_range(buf_T *buf, int row1, int row2, int add)
     if (mark.pos.row > row2) {
       break;
     }
-    // Finish the count at the previous row.
-    if (mark.pos.row != currow) {
-      buf_signcols_validate_row(buf, overlap[currow - row1], add);
-      currow = mark.pos.row;
-    }
-    // Increment overlap array for the start and range of a paired sign mark.
-    if (!mt_invalid(mark) && !mt_end(mark) && (mark.flags & MT_FLAG_DECOR_SIGNTEXT)) {
+    if ((!add || add[mark.pos.row - row1])  // Skip marks on a row without change
+        && (mark.flags & MT_FLAG_DECOR_SIGNTEXT) && !mt_invalid(mark) && !mt_end(mark)) {
+      // Increment count array for the range of a paired sign mark.
       MTPos end = marktree_get_altpos(buf->b_marktree, mark, NULL);
-      for (int i = currow; i <= MIN(row2, end.row < 0 ? currow : end.row); i++) {
-        overlap[i - row1]++;
+      for (int i = mark.pos.row; i <= MIN(row2, end.row < 0 ? mark.pos.row : end.row); i++) {
+        count[i - row1]++;
       }
     }
 
     marktree_itr_next(buf->b_marktree, itr);
   }
-  buf_signcols_validate_row(buf, overlap[currow - row1], add);
-  xfree(overlap);
+
+  for (int i = 0; i < row2 + 1 - row1; i++) {
+    if (!add || add[i]) {
+      buf_signcols_validate_row(buf, count[i], add ? add[i] : 1);
+    }
+  }
+
+  xfree(count);
 }
 
 int buf_signcols_validate(win_T *wp, buf_T *buf, bool stc_check)
@@ -870,20 +889,20 @@ int buf_signcols_validate(win_T *wp, buf_T *buf, bool stc_check)
     // Leave rest of the ranges invalid if max is already at configured
     // maximum or resize is detected for a 'statuscolumn' rebuild.
     if ((stc_check && buf->b_signcols.resized)
-        || (!stc_check && range.add > 0 && buf->b_signcols.max >= wp->w_maxscwidth)) {
+        || (!stc_check && (buf->b_signcols.max - range.maxdel) >= wp->w_maxscwidth)) {
       return wp->w_maxscwidth;
     }
-    buf_signcols_validate_range(buf, start, range.end, range.add);
+    buf_signcols_validate_range(buf, start, range.end, range.maxdel, range.add);
   });
 
   // Check if we need to scan the entire buffer.
   if (buf->b_signcols.max_count == 0) {
     buf->b_signcols.max = 0;
     buf->b_signcols.resized = true;
-    buf_signcols_validate_range(buf, 0, buf->b_ml.ml_line_count, 1);
+    buf_signcols_validate_range(buf, 0, buf->b_ml.ml_line_count, 0, NULL);
   }
 
-  map_clear(int, buf->b_signcols.invalid);
+  buf_signcols_free_all(buf);
   return buf->b_signcols.max;
 }
 
@@ -892,31 +911,61 @@ static void buf_signcols_invalidate_range(buf_T *buf, int row1, int row2, int ad
   if (!buf->b_signs_with_text) {
     buf->b_signcols.max = buf->b_signcols.max_count = 0;
     buf->b_signcols.resized = true;
-    map_clear(int, buf->b_signcols.invalid);
+    buf_signcols_free_all(buf);
     return;
   }
 
-  // Remove an invalid range if sum of added/removed signs is now 0.
-  SignRange *srp = map_ref(int, SignRange)(buf->b_signcols.invalid, row1, NULL);
-  if (srp && srp->end == row2 && srp->add + add == 0) {
-    map_del(int, SignRange)(buf->b_signcols.invalid, row1, NULL);
-    return;
-  }
-
-  // Merge with overlapping invalid range.
+  int row0 = row1;       // first row of merged adjacent ranges
+  int row3 = row2;       // last row of merged adjacent ranges
+  int *sameadd = NULL;   // add array for already invalid range
   int start;
   SignRange range;
-  map_foreach(buf->b_signcols.invalid, start, range, {
-    if (row1 <= range.end && start <= row2) {
-      row1 = MIN(row1, start);
-      row2 = MAX(row2, range.end);
-      break;
-    }
-  });
+  bool merged = true;
+  Map(int, int) addmap[1] = { (Map(int, int)) MAP_INIT };
 
-  srp = map_put_ref(int, SignRange)(buf->b_signcols.invalid, row1, NULL, NULL);
-  srp->end = row2;
-  srp->add += add;
+  // Merge with adjacent invalid ranges. Merging with one range may make the union
+  // adjacent to another range. Keep looping until no adjacent range is found.
+  while (merged) {
+    merged = false;
+    map_foreach(buf->b_signcols.invalid, start, range, {
+      if (row0 <= range.end + 1 && start <= row3 + 1) {
+        row0 = MIN(row0, start);
+        row3 = MAX(row3, range.end);
+        for (int i = start; i <= range.end; i++) {
+          map_put(int, int)(addmap, i, range.add[i - start]);
+        }
+        map_del(int, SignRange)(buf->b_signcols.invalid, start, NULL);
+        if (row1 != row0 || row2 != row3) {
+          xfree(range.add);
+        } else {
+          sameadd = range.add;
+        }
+        merged = true;
+      }
+    })
+  }
+
+  SignRange *srp = map_put_ref(int, SignRange)(buf->b_signcols.invalid, row0, NULL, NULL);
+  srp->add = sameadd ? sameadd : xmalloc(sizeof(int) * (size_t)(row3 + 1 - row0));
+  srp->end = row3;
+
+  for (int i = row0; i <= row3; i++) {
+    srp->add[i - row0] = map_get(int, int)(addmap, i) + ((i >= row1 && i <= row2) ? add : 0);
+    if (-srp->add[i - row0] > srp->maxdel) {
+      srp->maxdel = -srp->add[i - row0];
+    }
+  }
+  map_destroy(int, addmap);
+}
+
+void buf_signcols_free_all(buf_T *buf)
+{
+  SignRange range;
+  map_foreach_value(buf->b_signcols.invalid, range, {
+    xfree(range.add);
+  })
+  map_destroy(int, buf->b_signcols.invalid);
+  *buf->b_signcols.invalid = (Map(int, SignRange)) MAP_INIT;
 }
 
 void decor_redraw_end(DecorState *state)
