@@ -699,7 +699,7 @@ struct file_buffer {
 
   struct {
     int max;                         // maximum number of signs on a single line
-    int max_count;                   // number of lines with max number of signs
+    int count[SIGN_SHOW_MAX];        // number of lines with number of signs
     bool resized;                    // whether max changed at start of redraw
     Map(int, SignRange) invalid[1];  // map of invalid ranges to be checked
   } b_signcols;

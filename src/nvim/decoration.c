@@ -797,13 +797,16 @@ DecorSignHighlight *decor_find_sign(DecorInline decor)
 static void buf_signcols_validate_row(buf_T *buf, int count, int add)
 {
   // If "count" is greater than current max, set it and reset "max_count".
-  if (count > buf->b_signcols.max) {
-    buf->b_signcols.max = count;
-    buf->b_signcols.max_count = 1;
-    buf->b_signcols.resized = true;
-  } else if (count == buf->b_signcols.max - (add < 0 ? -add : 0)) {
-    // If row has or had "max" signs, adjust "max_count" with sign of "add".
-    buf->b_signcols.max_count += (add > 0) - (add < 0);
+  if (count > 0) {
+    buf->b_signcols.count[count - 1]++;
+    if (count > buf->b_signcols.max) {
+      buf->b_signcols.resized = true;
+      buf->b_signcols.max = count;
+    }
+  }
+  if (count - add > 0) {
+    buf->b_signcols.count[count - add - 1]--;
+    assert(buf->b_signcols.count[count - add - 1] >= 0);
   }
 }
 
@@ -827,7 +830,7 @@ static void buf_signcols_validate_range(buf_T *buf, int row1, int row2, int del,
         add[i - row0] = 0;  // no need to validate this row later
       }
     }
-    buf->b_signcols.max_count -= maxdel;
+    buf->b_signcols.count[buf->b_signcols.max - 1] -= maxdel;
 
     if (maxdel == (row2 + 1 - row1)) {
       return;  // max signs deleted in entire range
@@ -895,11 +898,9 @@ int buf_signcols_validate(win_T *wp, buf_T *buf, bool stc_check)
     buf_signcols_validate_range(buf, start, range.end, range.maxdel, range.add);
   });
 
-  // Check if we need to scan the entire buffer.
-  if (buf->b_signcols.max_count == 0) {
-    buf->b_signcols.max = 0;
+  while (buf->b_signcols.max > 0 && buf->b_signcols.count[buf->b_signcols.max - 1] == 0) {
     buf->b_signcols.resized = true;
-    buf_signcols_validate_range(buf, 0, buf->b_ml.ml_line_count, 0, NULL);
+    buf->b_signcols.max--;
   }
 
   buf_signcols_free_all(buf);
@@ -909,8 +910,9 @@ int buf_signcols_validate(win_T *wp, buf_T *buf, bool stc_check)
 static void buf_signcols_invalidate_range(buf_T *buf, int row1, int row2, int add)
 {
   if (!buf->b_signs_with_text) {
-    buf->b_signcols.max = buf->b_signcols.max_count = 0;
+    buf->b_signcols.max = 0;
     buf->b_signcols.resized = true;
+    CLEAR_FIELD(buf->b_signcols.count);
     buf_signcols_free_all(buf);
     return;
   }
