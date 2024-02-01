@@ -18,6 +18,7 @@
 #include "nvim/eval.h"
 #include "nvim/eval/typval_defs.h"
 #include "nvim/eval/vars.h"
+#include "nvim/ex_getln.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/globals.h"
 #include "nvim/grid.h"

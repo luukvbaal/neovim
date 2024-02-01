@@ -15,6 +15,9 @@ enum {
   VSE_BUFFER = 2,  ///< escape for a ":buffer" command
 };
 
+EXTERN win_T *cmdline_win;
+EXTERN buf_T *cmdline_buf;
+
 #ifdef INCLUDE_GENERATED_DECLARATIONS
 # include "ex_getln.h.generated.h"
 #endif

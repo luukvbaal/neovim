@@ -26,6 +26,7 @@
 #include "nvim/event/multiqueue.h"
 #include "nvim/ex_cmds_defs.h"
 #include "nvim/ex_eval.h"
+#include "nvim/ex_getln.h"
 #include "nvim/fileio.h"
 #include "nvim/garray.h"
 #include "nvim/garray_defs.h"
@@ -63,6 +64,7 @@
 #include "nvim/ui_compositor.h"
 #include "nvim/ui_defs.h"
 #include "nvim/vim_defs.h"
+#include "nvim/window.h"
 
 // To be able to scroll back at the "more" and "hit-enter" prompts we need to
 // store the displayed text and remember where screen lines start.
@@ -2113,6 +2115,10 @@ static void msg_puts_display(const char *str, int maxlen, int attr, int recurse)
     ga_concat_len(&msg_ext_last_chunk, str, len);
     msg_ext_cur_len += len;
     return;
+  }
+
+  if (cmdline_win != NULL && !cmdline_win->w_float_config.hide) {
+    cmdline_win->w_float_config.hide = cmdline_win->w_pos_changed = true;
   }
 
   int print_attr = hl_combine_attr(HL_ATTR(HLF_MSG), attr);

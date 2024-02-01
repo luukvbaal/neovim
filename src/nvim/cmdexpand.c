@@ -364,7 +364,7 @@ static int cmdline_pum_create(CmdlineInfo *ccline, expand_T *xp, char **matches,
   if (ui_has(kUICmdline)) {
     compl_startcol = (int)(endpos - ccline->cmdbuff);
   } else {
-    compl_startcol = cmd_screencol((int)(endpos - ccline->cmdbuff));
+    compl_startcol = cmdline_win->w_wcol - (int)mb_string2cells(endpos);
   }
 
   // no default selection
