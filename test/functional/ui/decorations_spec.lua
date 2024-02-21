@@ -5387,6 +5387,33 @@ l5
                                                         |
     ]]}
   end)
+
+  pending('correct number of signs after deleting text(#27046)', function()
+    command('call setline(1, ["foo bar"]->repeat(31))')
+    api.nvim_buf_set_extmark(0, ns, 0, 0, {end_row = 0, sign_text = 'S1'})
+    api.nvim_buf_set_extmark(0, ns, 0, 0, {end_row = 0, end_col = 3, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 0, 4, {end_row = 0, end_col = 7, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 9, 0, {end_row = 9,  sign_text = 'S2'})
+    api.nvim_buf_set_extmark(0, ns, 9, 0, {end_row = 9, end_col = 3, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 9, 4, {end_row = 9, end_col = 7, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 19, 0, {end_row = 19, sign_text = 'S3'})
+    api.nvim_buf_set_extmark(0, ns, 19, 0, {end_row = 19, end_col = 3, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 19, 4, {end_row = 19, end_col = 7, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 29, 0, {end_row = 29, sign_text = 'S4'})
+    api.nvim_buf_set_extmark(0, ns, 29, 0, {end_row = 29, end_col = 3, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 29, 4, {end_row = 29, end_col = 7, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 30, 0, {end_row = 30, sign_text = 'S5'})
+    api.nvim_buf_set_extmark(0, ns, 30, 0, {end_row = 30, end_col = 3, hl_group = 'Error'})
+    api.nvim_buf_set_extmark(0, ns, 30, 4, {end_row = 30, end_col = 7, hl_group = 'Error'})
+    command('0d29')
+
+    screen:expect{grid=[[
+      S1S2S3S4S5{4:^foo} {4:bar}                         |
+      S5{1:              }{4:foo} {4:bar}                           |
+      29 fewer lines                                    |
+    ]]}
+    api.nvim_buf_clear_namespace(0, ns, 0, -1)
+  end)
 end)
 
 describe('decorations: virt_text', function()
