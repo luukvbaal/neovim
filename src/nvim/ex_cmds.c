@@ -3804,7 +3804,7 @@ static int do_sub(exarg_T *eap, const proftime_T timeout, const int cmdpreview_n
               msg_scroll = 0;                           // truncate msg when
                                                         // needed
               msg_no_more = true;
-              msg_ext_set_kind("confirm_sub");
+              msg_ext_insert_kind("confirm_sub");
               // Same highlight as wait_return().
               smsg(HL_ATTR(HLF_R), _("replace with %s (y/n/a/q/l/^E/^Y)?"), sub);
               msg_no_more = false;

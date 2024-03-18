@@ -152,7 +152,7 @@ void nlua_error(lua_State *const lstate, const char *const msg)
     fprintf(stderr, msg, (int)len, str);
     fprintf(stderr, "\n");
   } else {
-    msg_ext_set_kind("lua_error");
+    msg_ext_insert_kind("lua_error");
     semsg_multiline(msg, (int)len, str);
   }
 
@@ -183,7 +183,7 @@ static void nlua_luv_error_event(void **argv)
 {
   char *error = (char *)argv[0];
   luv_err_t type = (luv_err_t)(intptr_t)argv[1];
-  msg_ext_set_kind("lua_error");
+  msg_ext_insert_kind("lua_error");
   switch (type) {
   case kCallback:
     semsg_multiline("Error executing luv callback:\n%s", error);

@@ -90,7 +90,7 @@ void change_warning(buf_T *buf, int col)
       msg_col = col;
     }
     msg_source(HL_ATTR(HLF_W));
-    msg_ext_set_kind("wmsg");
+    msg_ext_insert_kind("wmsg");
     msg_puts_attr(_(w_readonly), HL_ATTR(HLF_W) | MSG_HIST);
     set_vim_var_string(VV_WARNINGMSG, _(w_readonly), -1);
     msg_clr_eos();

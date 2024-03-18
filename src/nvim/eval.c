@@ -8098,7 +8098,7 @@ void ex_echo(exarg_T *eap)
       }
       char *tofree = encode_tv2echo(&rettv, NULL);
       if (*tofree != NUL) {
-        msg_ext_set_kind("echo");
+        msg_ext_insert_kind("echo");
         msg_multiline(tofree, echo_attr, true, &need_clear);
       }
       xfree(tofree);
@@ -8175,12 +8175,12 @@ void ex_execute(exarg_T *eap)
 
   if (ret != FAIL && ga.ga_data != NULL) {
     if (eap->cmdidx == CMD_echomsg) {
-      msg_ext_set_kind("echomsg");
+      msg_ext_insert_kind("echomsg");
       msg(ga.ga_data, echo_attr);
     } else if (eap->cmdidx == CMD_echoerr) {
       // We don't want to abort following commands, restore did_emsg.
       int save_did_emsg = did_emsg;
-      msg_ext_set_kind("echoerr");
+      msg_ext_insert_kind("echoerr");
       emsg_multiline(ga.ga_data, true);
       if (!force_abort) {
         did_emsg = save_did_emsg;

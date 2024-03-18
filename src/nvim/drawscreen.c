@@ -927,9 +927,6 @@ int showmode(void)
     msg_ext_clear(true);
   }
 
-  // don't make non-flushed message part of the showmode
-  msg_ext_ui_flush();
-
   msg_grid_validate();
 
   bool do_mode = ((p_smd && msg_silent == 0)
@@ -966,6 +963,8 @@ int showmode(void)
     lines_left = 0;
 
     if (do_mode) {
+      // NB: also handles clearing the showmode if it was empty or disabled
+      msg_ext_insert_kind("showmode");
       msg_puts_attr("--", attr);
       // CTRL-X in Insert mode
       if (edit_submode != NULL && !shortmess(SHM_COMPLETIONMENU)) {
@@ -1090,9 +1089,6 @@ int showmode(void)
     msg_clr_eos();
   }
 
-  // NB: also handles clearing the showmode if it was empty or disabled
-  msg_ext_flush_showmode();
-
   // In Visual mode the size of the selected area must be redrawn.
   if (VIsual_active) {
     clear_showcmd();
@@ -1141,13 +1137,12 @@ void clearmode(void)
   const int save_msg_row = msg_row;
   const int save_msg_col = msg_col;
 
-  msg_ext_ui_flush();
   msg_pos_mode();
   if (reg_recording != 0) {
     recording_mode(HL_ATTR(HLF_CM));
   }
   msg_clr_eos();
-  msg_ext_flush_showmode();
+  msg_ext_insert_kind("showmode");
 
   msg_col = save_msg_col;
   msg_row = save_msg_row;

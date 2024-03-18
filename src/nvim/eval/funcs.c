@@ -7162,7 +7162,7 @@ static void f_rpcrequest(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
     if (chan) {
       name = get_client_info(chan, "name");
     }
-    msg_ext_set_kind("rpc_error");
+    msg_ext_insert_kind("rpc_error");
     if (name) {
       semsg_multiline("Error invoking '%s' on channel %" PRIu64 " (%s):\n%s",
                       method, chan_id, name, err.msg);

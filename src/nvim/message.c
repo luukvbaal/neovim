@@ -133,8 +133,8 @@ bool keep_msg_more = false;    // keep_msg was set by msgmore()
 //                  This is an allocated string or NULL when not used.
 
 // Extended msg state, currently used for external UIs with ext_messages
-static const char *msg_ext_kind = NULL;
-static Array msg_ext_chunks = ARRAY_DICT_INIT;
+static Array msg_ext_contents = ARRAY_DICT_INIT;
+static Array *msg_ext_cur_content = NULL;
 static garray_T msg_ext_last_chunk = GA_INIT(sizeof(char), 40);
 static sattr_T msg_ext_last_attr = -1;
 static size_t msg_ext_cur_len = 0;
@@ -284,7 +284,7 @@ void msg_multiattr(HlMessage hl_msg, const char *kind, bool history)
   msg_start();
   msg_clr_eos();
   bool need_clear = false;
-  msg_ext_set_kind(kind);
+  msg_ext_insert_kind(kind);
   for (uint32_t i = 0; i < kv_size(hl_msg); i++) {
     HlMessageChunk chunk = kv_A(hl_msg, i);
     msg_multiline(chunk.text.data, chunk.attr, true, &need_clear);
@@ -743,8 +743,8 @@ bool emsg_multiline(const char *s, bool multiline)
   }                           // wait_return() has reset need_wait_return
                               // and a redraw is expected because
                               // msg_scrolled is non-zero
-  if (msg_ext_kind == NULL) {
-    msg_ext_set_kind("emsg");
+  if (msg_ext_cur_content == NULL) {
+    msg_ext_insert_kind("emsg");
   }
 
   // Display name and line number for the source of the error.
@@ -1006,7 +1006,7 @@ static void add_msg_hist_multiattr(const char *s, int len, int attr, bool multil
   p->attr = attr;
   p->multiline = multiline;
   p->multiattr = multiattr;
-  p->kind = msg_ext_kind;
+  p->kind = "";
   if (last_msg_hist != NULL) {
     last_msg_hist->next = p;
   }
@@ -1326,7 +1326,7 @@ static void hit_return_msg(bool newline_sb)
     msg_putchar('\n');
   }
   p_more = false;       // don't want to see this message when scrolling back
-  msg_ext_set_kind("return_prompt");
+  msg_ext_insert_kind("return_prompt");
   if (got_int) {
     msg_puts(_("Interrupt: "));
   }
@@ -1401,17 +1401,6 @@ void msgmore(int n)
   }
 }
 
-void msg_ext_set_kind(const char *msg_kind)
-{
-  // Don't change the label of an existing batch:
-  msg_ext_ui_flush();
-
-  // TODO(bfredl): would be nice to avoid dynamic scoping, but that would
-  // need refactoring the msg_ interface to not be "please pretend nvim is
-  // a terminal for a moment"
-  msg_ext_kind = msg_kind;
-}
-
 /// Prepare for outputting characters in the command line.
 void msg_start(void)
 {
@@ -1457,7 +1446,6 @@ void msg_start(void)
   }
 
   if (ui_has(kUIMessages)) {
-    msg_ext_ui_flush();
     if (!msg_scroll && msg_ext_visible) {
       // Will overwrite last message.
       msg_ext_overwrite = true;
@@ -2121,18 +2109,62 @@ void msg_printf_attr(const int attr, const char *const fmt, ...)
   msg_puts_len(msgbuf, (ptrdiff_t)len, attr);
 }
 
-static void msg_ext_emit_chunk(void)
+static void msg_ext_insert_attr(void)
 {
-  // Color was changed or a message flushed, end current chunk.
   if (msg_ext_last_attr == -1) {
     return;  // no chunk
+  } else if (msg_ext_cur_content == NULL) {
+    msg_ext_insert_kind("");
   }
+  // Color was changed, end current chunk.
   Array chunk = ARRAY_DICT_INIT;
   ADD(chunk, INTEGER_OBJ(msg_ext_last_attr));
   msg_ext_last_attr = -1;
-  String text = ga_take_string(&msg_ext_last_chunk);
-  ADD(chunk, STRING_OBJ(text));
-  ADD(msg_ext_chunks, ARRAY_OBJ(chunk));
+  ADD(chunk, STRING_OBJ(ga_take_string(&msg_ext_last_chunk)));
+  ADD(*msg_ext_cur_content, ARRAY_OBJ(chunk));
+}
+
+void msg_ext_insert_kind(const char *msg_kind)
+{
+  if (!ui_has(kUIMessages) || (msg_ext_cur_content != NULL
+    && strequal(msg_kind, kv_A(msg_ext_contents,
+                               kv_size(msg_ext_contents) - 2).data.string.data))) {
+    return;
+  }
+  // Kind changed, insert new content array.
+  ADD(msg_ext_contents, STRING_OBJ(cstr_to_string(msg_kind)));
+  ADD(msg_ext_contents, ARRAY_OBJ(ARRAY_DICT_INIT));
+  msg_ext_cur_content = &kv_A(msg_ext_contents, kv_size(msg_ext_contents) - 1).data.array;
+}
+
+void msg_ext_ui_flush(void)
+{
+  static bool recursive = false;
+  if (recursive) {
+    return;
+  }
+  recursive = true;
+  msg_ext_insert_attr();
+  if (kv_size(msg_ext_contents) > 0 && kv_size(kv_A(msg_ext_contents, 0).data.array) > 0) {
+    for (size_t i = 0; i < kv_size(msg_ext_contents); i++) {
+      String kind = kv_A(msg_ext_contents, i++).data.string;
+      Array content = kv_A(msg_ext_contents, i).data.array;
+      if (strequal(kind.data, "showmode")) {
+        ui_call_msg_showmode(content);
+      } else {
+        ui_call_msg_show(kind, content, msg_ext_overwrite);
+      }
+    }
+    if (!msg_ext_overwrite) {
+      msg_ext_visible++;
+    }
+    api_free_array(msg_ext_contents);
+    msg_ext_contents = (Array)ARRAY_DICT_INIT;
+    msg_ext_cur_content = NULL;
+    msg_ext_cur_len = 0;
+    msg_ext_overwrite = false;
+  }
+  recursive = false;
 }
 
 /// The display part of msg_puts_len().
@@ -2147,7 +2179,7 @@ static void msg_puts_display(const char *str, int maxlen, int attr, int recurse)
 
   if (ui_has(kUIMessages)) {
     if (attr != msg_ext_last_attr) {
-      msg_ext_emit_chunk();
+      msg_ext_insert_attr();
       msg_ext_last_attr = attr;
     }
     // Concat pieces with the same highlight
@@ -3039,48 +3071,7 @@ bool msg_end(void)
     wait_return(false);
     return false;
   }
-
-  // NOTE: ui_flush() used to be called here. This had to be removed, as it
-  // inhibited substantial performance improvements. It is assumed that relevant
-  // callers invoke ui_flush() before going into CPU busywork, or restricted
-  // event processing after displaying a message to the user.
-  msg_ext_ui_flush();
   return true;
-}
-
-void msg_ext_ui_flush(void)
-{
-  if (!ui_has(kUIMessages)) {
-    msg_ext_kind = NULL;
-    return;
-  }
-
-  msg_ext_emit_chunk();
-  if (msg_ext_chunks.size > 0) {
-    ui_call_msg_show(cstr_as_string(msg_ext_kind),
-                     msg_ext_chunks, msg_ext_overwrite);
-    if (!msg_ext_overwrite) {
-      msg_ext_visible++;
-    }
-    msg_ext_kind = NULL;
-    api_free_array(msg_ext_chunks);
-    msg_ext_chunks = (Array)ARRAY_DICT_INIT;
-    msg_ext_cur_len = 0;
-    msg_ext_overwrite = false;
-  }
-}
-
-void msg_ext_flush_showmode(void)
-{
-  // Showmode messages doesn't interrupt normal message flow, so we use
-  // separate event. Still reuse the same chunking logic, for simplicity.
-  if (ui_has(kUIMessages)) {
-    msg_ext_emit_chunk();
-    ui_call_msg_showmode(msg_ext_chunks);
-    api_free_array(msg_ext_chunks);
-    msg_ext_chunks = (Array)ARRAY_DICT_INIT;
-    msg_ext_cur_len = 0;
-  }
 }
 
 void msg_ext_clear(bool force)
@@ -3313,8 +3304,8 @@ void give_warning(const char *message, bool hl)
     keep_msg_attr = 0;
   }
 
-  if (msg_ext_kind == NULL) {
-    msg_ext_set_kind("wmsg");
+  if (msg_ext_cur_content == NULL) {
+    msg_ext_insert_kind("wmsg");
   }
 
   if (msg(message, keep_msg_attr) && msg_scrolled == 0) {
@@ -3648,7 +3639,7 @@ void display_confirm_msg(void)
   // Avoid that 'q' at the more prompt truncates the message here.
   confirm_msg_used++;
   if (confirm_msg != NULL) {
-    msg_ext_set_kind("confirm");
+    msg_ext_insert_kind("confirm");
     msg_puts_attr(confirm_msg, HL_ATTR(HLF_M));
   }
   confirm_msg_used--;

@@ -974,6 +974,9 @@ static void normal_finish_command(NormalState *s)
   // by the mode message.
   if (normal_need_redraw_mode_message(s)) {
     normal_redraw_mode_message(s);
+  } else {
+    // Flush ext_messages waiting to be emitted.
+    msg_ext_ui_flush();
   }
 
   // Finish up after executing a Normal mode command.

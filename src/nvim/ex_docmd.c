@@ -941,7 +941,7 @@ void handle_did_throw(void)
   discard_current_exception();              // uses IObuff if 'verbose'
   suppress_errthrow = true;
   force_abort = true;
-  msg_ext_set_kind("emsg");  // kind=emsg for :throw, exceptions. #9993
+  msg_ext_insert_kind("emsg");  // kind=emsg for :throw, exceptions. #9993
 
   if (messages != NULL) {
     do {
