@@ -241,6 +241,26 @@ describe('vim.ui_attach', function()
       ]],
     })
   end)
+
+  it('aborts :function on error with ext_messages', function()
+    exec_lua([[
+    vim.ui_attach(ns, { ext_messages = true }, function(event, messages)
+      if event == "msg_show" then
+        for _, msg in ipairs(messages) do
+          vim.api.nvim_buf_set_lines(0, -2, -1, false, {msg[2][1][2]})
+        end
+      end
+    end)
+    ]])
+    feed(':func Foo()<cr>bar<cr>endf<cr>:func Foo()<cr>')
+    screen:expect {
+      grid = [[
+      ^E122: Function Foo already exists, add !|
+       to replace it                          |
+      {1:~                                       }|*3
+    ]],
+    }
+  end)
 end)
 
 describe('vim.ui_attach', function()

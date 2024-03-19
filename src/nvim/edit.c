@@ -1393,6 +1393,7 @@ void ins_redraw(bool ready)
 
   pum_check_clear();
   show_cursor_info_later(false);
+  ui_flush_msg_show();     // may do vim.ui_attach() Lua callback
   if (must_redraw) {
     update_screen();
   } else {

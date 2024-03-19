@@ -977,6 +977,7 @@ static int command_line_check(VimState *state)
   did_emsg = false;        // There can't really be a reason why an error
                            // that occurs while typing a command should
                            // cause the command not to be executed.
+  ui_flush_msg_show();     // may do vim.ui_attach() Lua callback
 
   // Trigger SafeState if nothing is pending.
   may_trigger_safestate(s->xpc.xp_numfiles <= 0);
