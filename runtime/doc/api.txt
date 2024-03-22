@@ -3194,9 +3194,11 @@ nvim_open_win({buffer}, {enter}, {config})                   *nvim_open_win()*
                   • col: Column position in units of "screen cell width", may
                     be fractional.
                   • focusable: Enable focus by user actions (wincmds, mouse
-                    events). Defaults to true. Non-focusable windows can be
-                    entered by |nvim_set_current_win()|, or, when the `mouse`
-                    field is set to true, by mouse events.
+                    events). Defaults to true. Non-focusable windows are
+                    considered to be UI elements which Nvim may treat
+                    differently. They can however still be entered by
+                    |nvim_set_current_win()|, or, when the `mouse` field is
+                    set to true, by mouse events.
                   • mouse: Specify how this window interacts with mouse
                     events. Defaults to `focusable` value.
                     • If false, mouse events pass through this window.
