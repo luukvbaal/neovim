@@ -655,6 +655,12 @@ int update_screen(void)
     }
   }
 
+  // Clear or redraw the command line.  Done last, because scrolling may
+  // mess up the command line.
+  if (!redrawing_cmdline && (clear_cmdline || redraw_cmdline || redraw_mode)) {
+    showmode();
+  }
+
   end_search_hl();
 
   // May need to redraw the popup menu.
@@ -673,12 +679,6 @@ int update_screen(void)
   }
 
   updating_screen = false;
-
-  // Clear or redraw the command line.  Done last, because scrolling may
-  // mess up the command line.
-  if (clear_cmdline || redraw_cmdline || redraw_mode) {
-    showmode();
-  }
 
   // May put up an introductory message when not editing a file
   if (still_may_intro) {

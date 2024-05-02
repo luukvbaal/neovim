@@ -377,6 +377,10 @@ void ui_attach_impl(RemoteUI *ui, uint64_t chanid)
   if (ui_count == MAX_UI_COUNT) {
     abort();
   }
+
+  if (ui->ui_ext[kUIMessages] || ui->ui_ext[kUICmdline]) {
+    ui_remove_cb(1);  // Disable the default cmdline/message UI.
+  }
   if (!ui->ui_ext[kUIMultigrid] && !ui->ui_ext[kUIFloatDebug]
       && !ui_client_channel_id) {
     ui_comp_attach(ui);
@@ -801,6 +805,9 @@ void ui_add_cb(uint32_t ns_id, LuaRef cb, bool *ext_widgets)
   memcpy(event_cb->ext_widgets, ext_widgets, ARRAY_SIZE(event_cb->ext_widgets));
   if (event_cb->ext_widgets[kUIMessages]) {
     event_cb->ext_widgets[kUICmdline] = true;
+  }
+  if (event_cb->ext_widgets[kUIMessages] || event_cb->ext_widgets[kUICmdline]) {
+    ui_remove_cb(1);  // Disable the default cmdline/message UI.
   }
 
   ptr_t *item = pmap_put_ref(uint32_t)(&ui_event_cbs, ns_id, NULL, NULL);

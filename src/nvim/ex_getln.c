@@ -2706,8 +2706,12 @@ static int command_line_changed(CommandLineState *s)
 /// Abandon the command line.
 static void abandon_cmdline(void)
 {
+  ccline.redraw_state = kCmdRedrawAll;
+  ccline.cmdbuff[0] = NUL;
+  ccline.cmdfirstc = NUL;
+  ccline.cmdpos = 0;
+  cmdline_ui_flush();
   XFREE_CLEAR(ccline.cmdbuff);
-  ccline.redraw_state = kCmdRedrawNone;
   if (msg_scrolled == 0) {
     compute_cmdrow();
   }
@@ -3473,6 +3477,7 @@ void cmdline_ui_flush(void)
   if (!ui_has(kUICmdline)) {
     return;
   }
+
   int level = ccline.level;
   CmdlineInfo *line = &ccline;
   while (level > 0 && line) {

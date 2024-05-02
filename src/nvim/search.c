@@ -1276,19 +1276,12 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char *pat, size_t patlen
           memmove(msgbuf + plen + 1, off_buf, off_len);
         }
 
-        char *trunc = msg_strtrunc(msgbuf, true);
-        if (trunc != NULL) {
-          xfree(msgbuf);
-          msgbuf = trunc;
-          msgbuflen = strlen(msgbuf);
-        }
-
         // The search pattern could be shown on the right in rightleft
         // mode, but the 'ruler' and 'showcmd' area use it too, thus
         // it would be blanked out again very soon.  Show it on the
         // left, but do reverse the text.
         if (curwin->w_p_rl && *curwin->w_p_rlc == 's') {
-          char *r = reverse_text(trunc != NULL ? trunc : msgbuf);
+          char *r = reverse_text(msgbuf);
           xfree(msgbuf);
           msgbuf = r;
           // move reversed text to beginning of buffer

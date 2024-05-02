@@ -1138,6 +1138,7 @@ void msg_end_prompt(void)
 ///                if -1, don't redraw at all
 void wait_return(int redraw)
 {
+  return;
   int c;
   int had_got_int;
   FILE *save_scriptout;

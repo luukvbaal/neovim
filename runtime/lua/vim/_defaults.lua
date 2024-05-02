@@ -1,3 +1,19 @@
+--- Default cmdline and message UI
+local ext = require('vim.ui.ext')
+ext.cmd = require('vim.ui.ext.cmdline')
+ext.msg = require('vim.ui.ext.messages')
+vim.ui_attach(ext.ns, { ext_cmdline = true, ext_messages = true }, function(event, ...)
+  local handler = event:find('msg_') and ext.msg[event] or ext.cmd[event] ---@type fun(...)
+  ext.tab_check_wins()
+  handler(...)
+  vim.api.nvim__redraw({
+    flush = true,
+    cursor = handler == ext.cmd[event] and true or nil,
+    win = handler == ext.cmd[event] and ext.wins[ext.tab].cmd or nil
+  })
+end)
+vim.o.cmdheight = 1
+
 --- Default user commands
 do
   vim.api.nvim_create_user_command('Inspect', function(cmd)
