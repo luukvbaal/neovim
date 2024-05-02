@@ -152,8 +152,6 @@ void do_ascii(exarg_T *eap)
     return;
   }
 
-  bool need_clear = true;
-  msg_sb_eol();
   msg_start();
 
   int c = utf_ptr2char(data);
@@ -189,7 +187,7 @@ void do_ascii(exarg_T *eap)
                    transchar(c), buf1, buf2, cval, cval, cval);
     }
 
-    msg_multiline(IObuff, 0, true, &need_clear);
+    msg_multiline(IObuff, 0, true);
 
     off += (size_t)utf_ptr2len(data);  // needed for overlong ascii?
   }
@@ -224,14 +222,11 @@ void do_ascii(exarg_T *eap)
                    c, c, c);
     }
 
-    msg_multiline(IObuff, 0, true, &need_clear);
+    msg_multiline(IObuff, 0, true);
 
     off += (size_t)utf_ptr2len(data + off);  // needed for overlong ascii?
   }
 
-  if (need_clear) {
-    msg_clr_eos();
-  }
   msg_end();
 }
 
@@ -936,7 +931,6 @@ void do_bang(int addr_count, exarg_T *eap, bool forceit, bool do_in, bool do_out
   linenr_T line2 = eap->line2;        // end of range
   char *newcmd = NULL;              // the new command
   bool free_newcmd = false;           // need to free() newcmd
-  int scroll_save = msg_scroll;
 
   // Disallow shell commands in secure mode
   if (check_secure()) {
@@ -944,9 +938,7 @@ void do_bang(int addr_count, exarg_T *eap, bool forceit, bool do_in, bool do_out
   }
 
   if (addr_count == 0) {                // :!
-    msg_scroll = false;             // don't scroll here
     autowrite_all();
-    msg_scroll = scroll_save;
   }
 
   // Try to find an embedded bang, like in ":!<cmd> ! [args]"
@@ -1039,8 +1031,6 @@ void do_bang(int addr_count, exarg_T *eap, bool forceit, bool do_in, bool do_out
     msg_putchar(':');
     msg_putchar('!');
     msg_outtrans(newcmd, 0);
-    msg_clr_eos();
-    ui_cursor_goto(msg_row, msg_col);
 
     do_shell(newcmd, 0);
   } else {                            // :range!
@@ -1137,13 +1127,10 @@ static void do_filter(linenr_T line1, linenr_T line2, exarg_T *eap, char *cmd, b
 
   // The writing and reading of temp files will not be shown.
   // Vi also doesn't do this and the messages are not very informative.
-  no_wait_return++;             // don't call wait_return() while busy
   if (itmp != NULL && buf_write(curbuf, itmp, NULL, line1, line2, eap,
                                 false, false, false, true) == FAIL) {
     msg_putchar('\n');  // Keep message from buf_write().
-    no_wait_return--;
     if (!aborting()) {
-      // will call wait_return()
       semsg(_("E482: Can't create file %s"), itmp);
     }
     goto filterend;
@@ -1240,13 +1227,12 @@ static void do_filter(linenr_T line1, linenr_T line2, exarg_T *eap, char *cmd, b
     }
 
     beginline(BL_WHITE | BL_FIX);           // cursor on first non-blank
-    no_wait_return--;
 
     if (linecount > p_report) {
       if (do_in) {
         vim_snprintf(msg_buf, sizeof(msg_buf),
                      _("%" PRId64 " lines filtered"), (int64_t)linecount);
-        if (msg(msg_buf, 0) && !msg_scroll) {
+        if (msg(msg_buf, 0)) {
           // save message to display it after redraw
           set_keep_msg(msg_buf, 0);
         }
@@ -1258,15 +1244,12 @@ static void do_filter(linenr_T line1, linenr_T line2, exarg_T *eap, char *cmd, b
 error:
     // put cursor back in same position for ":w !cmd"
     curwin->w_cursor = cursor_save;
-    no_wait_return--;
-    wait_return(false);
   }
 
 filterend:
 
   cmdmod.cmod_flags = save_cmod_flags;
   if (curbuf != old_curbuf) {
-    no_wait_return--;
     emsg(_("E135: *Filter* Autocommands must not change current buffer"));
   } else if (cmdmod.cmod_flags & CMOD_LOCKMARKS) {
     curbuf->b_op_start = orig_start;
@@ -1312,20 +1295,9 @@ void do_shell(char *cmd, int flags)
     }
   }
 
-  // This ui_cursor_goto is required for when the '\n' resulted in a "delete line
-  // 1" command to the terminal.
-  ui_cursor_goto(msg_row, msg_col);
   call_shell(cmd, (ShellOpts)flags, NULL);
-  if (msg_silent == 0) {
-    msg_didout = true;
-  }
   did_check_timestamps = false;
   need_check_timestamps = true;
-
-  // put the message cursor at the end of the screen, avoids wait_return()
-  // to overwrite the text that the external command showed
-  msg_row = Rows - 1;
-  msg_col = 0;
 
   apply_autocmds(EVENT_SHELLCMDPOST, NULL, NULL, false, curbuf);
 }
@@ -2034,23 +2006,16 @@ int getfile(int fnum, char *ffname_arg, char *sfname_arg, bool setpm, linenr_T l
     other = (fnum != curbuf->b_fnum);
   }
 
-  if (other) {
-    no_wait_return++;               // don't wait for autowrite message
-  }
   if (other && !forceit && curbuf->b_nwindows == 1 && !buf_hide(curbuf)
       && curbufIsChanged() && autowrite(curbuf, forceit) == FAIL) {
     if (p_confirm && p_write) {
       dialog_changed(curbuf, false);
     }
     if (curbufIsChanged()) {
-      no_wait_return--;
       no_write_message();
       retval = GETFILE_NOT_WRITTEN;     // File has been changed.
       goto theend;
     }
-  }
-  if (other) {
-    no_wait_return--;
   }
   if (setpm) {
     setpcmark();
@@ -2666,25 +2631,13 @@ int do_ecmd(int fnum, char *ffname, char *sfname, exarg_T *eap, linenr_T newlnum
   // Do this after setting the cursor.
   if (oldbuf
       && !auto_buf) {
-    int msg_scroll_save = msg_scroll;
-
     // Obey the 'O' flag in 'cpoptions': overwrite any previous file
     // message.
-    if (shortmess(SHM_OVERALL) && !msg_listdo_overwrite && !exiting && p_verbose == 0) {
-      msg_scroll = false;
-    }
-    if (!msg_scroll) {          // wait a bit when overwriting an error msg
-      msg_check_for_delay(false);
-    }
     msg_start();
-    msg_scroll = msg_scroll_save;
-    msg_scrolled_ign = true;
 
     if (!shortmess(SHM_FILEINFO)) {
       fileinfo(false, true, false);
     }
-
-    msg_scrolled_ign = false;
   }
 
   curbuf->b_last_used = time(NULL);
@@ -2774,8 +2727,6 @@ void ex_append(exarg_T *eap)
   }
 
   while (true) {
-    msg_scroll = true;
-    need_wait_return = false;
     if (curbuf->b_p_ai) {
       if (append_indent >= 0) {
         indent = append_indent;
@@ -2808,7 +2759,6 @@ void ex_append(exarg_T *eap)
                                 eap->cookie, indent, true);
       State = save_State;
     }
-    lines_left = Rows - 1;
     if (theline == NULL) {
       break;
     }
@@ -2876,7 +2826,6 @@ void ex_append(exarg_T *eap)
   check_cursor_lnum(curwin);
   beginline(BL_SOL | BL_FIX);
 
-  need_wait_return = false;     // don't use wait_return() now
   ex_no_reprint = true;
 }
 
@@ -3803,22 +3752,8 @@ static int do_sub(exarg_T *eap, const proftime_T timeout, const int cmdpreview_n
               redraw_later(curwin, UPD_SOME_VALID);
 
               curwin->w_p_fen = save_p_fen;
-              if (msg_row == Rows - 1) {
-                msg_didout = false;                     // avoid a scroll-up
-              }
-              msg_starthere();
-              i = msg_scroll;
-              msg_scroll = 0;                           // truncate msg when
-                                                        // needed
-              msg_no_more = true;
               msg_ext_set_kind("confirm_sub");
-              // Same highlight as wait_return().
               smsg(HL_ATTR(HLF_R), _("replace with %s (y/n/a/q/l/^E/^Y)?"), sub);
-              msg_no_more = false;
-              msg_scroll = i;
-              if (!ui_has(kUIMessages)) {
-                ui_cursor_goto(msg_row, msg_col);
-              }
               RedrawingDisabled = temp;
 
               no_mapping++;                     // don't map this key
@@ -3826,11 +3761,6 @@ static int do_sub(exarg_T *eap, const proftime_T timeout, const int cmdpreview_n
               typed = plain_vgetc();
               no_mapping--;
               allow_keys--;
-
-              // clear the question
-              msg_didout = false;               // don't scroll up
-              msg_col = 0;
-              gotocmdline(true);
               p_lz = save_p_lz;
 
               // restore the line
@@ -3839,7 +3769,6 @@ static int do_sub(exarg_T *eap, const proftime_T timeout, const int cmdpreview_n
               }
             }
 
-            need_wait_return = false;             // no hit-return prompt
             if (typed == 'q' || typed == ESC || typed == Ctrl_C) {
               got_quit = true;
               break;
@@ -4368,9 +4297,9 @@ static void global_exe_one(char *const cmd, const linenr_T lnum)
   curwin->w_cursor.lnum = lnum;
   curwin->w_cursor.col = 0;
   if (*cmd == NUL || *cmd == '\n') {
-    do_cmdline("p", NULL, NULL, DOCMD_NOWAIT);
+    do_cmdline("p", NULL, NULL, 0);
   } else {
-    do_cmdline(cmd, NULL, NULL, DOCMD_NOWAIT);
+    do_cmdline(cmd, NULL, NULL, 0);
   }
 }
 
@@ -4507,9 +4436,6 @@ void global_exe(char *cmd)
   // If there is an error, global_busy will be incremented.
   setpcmark();
 
-  // When the command writes a message, don't overwrite the command.
-  msg_didout = true;
-
   sub_nsubs = 0;
   sub_nlines = 0;
   global_need_beginline = false;
@@ -4531,12 +4457,6 @@ void global_exe(char *cmd)
   // the cursor may not have moved in the text but a change in a previous
   // line may move it on the screen
   changed_line_abv_curs();
-
-  // If it looks like no message was written, allow overwriting the
-  // command with the report for number of changes.
-  if (msg_col == 0 && msg_scrolled == 0) {
-    msg_didout = false;
-  }
 
   // If substitutes done, report number of substitutes, otherwise report
   // number of extra or deleted lines.
@@ -4794,7 +4714,6 @@ void ex_oldfiles(exarg_T *eap)
   }
 
   msg_start();
-  msg_scroll = true;
   TV_LIST_ITER(l, li, {
     if (got_int) {
       break;
@@ -4805,7 +4724,6 @@ void ex_oldfiles(exarg_T *eap)
       msg_outnum(nr);
       msg_puts(": ");
       msg_outtrans(tv_get_string(TV_LIST_ITEM_TV(li)), 0);
-      msg_clr_eos();
       msg_putchar('\n');
       os_breakcheck();
     }
@@ -4816,9 +4734,7 @@ void ex_oldfiles(exarg_T *eap)
 
   // File selection prompt on ":browse oldfiles"
   if (cmdmod.cmod_flags & CMOD_BROWSE) {
-    quit_more = false;
     nr = prompt_for_number(false);
-    msg_starthere();
     if (nr > 0 && nr <= tv_list_len(l)) {
       const char *const p = tv_list_find_str(l, nr - 1);
       if (p == NULL) {

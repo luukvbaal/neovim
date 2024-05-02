@@ -3444,9 +3444,6 @@ static void syn_list_cluster(int id)
   msg_putchar('\n');
   msg_outtrans(SYN_CLSTR(curwin->w_s)[id].scl_name, 0);
 
-  if (msg_col >= endcol) {      // output at least one space
-    endcol = msg_col + 1;
-  }
   if (Columns <= endcol) {      // avoid hang for tiny window
     endcol = Columns - 1;
   }

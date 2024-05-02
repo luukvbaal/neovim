@@ -142,32 +142,15 @@ EXTERN char *edit_submode_pre INIT( = NULL);     // prepended to edit_submode
 EXTERN char *edit_submode_extra INIT( = NULL);   // appended to edit_submode
 EXTERN hlf_T edit_submode_highl;                // highl. method for extra info
 
-// state for putting characters in the message area
 EXTERN bool cmdmsg_rl INIT( = false);  // cmdline is drawn right to left
-EXTERN int msg_col;
-EXTERN int msg_row;
-EXTERN int msg_scrolled;        // Number of screen lines that windows have
-                                // scrolled because of printing messages.
-// when true don't set need_wait_return in msg_puts_attr()
-// when msg_scrolled is non-zero
-EXTERN bool msg_scrolled_ign INIT( = false);
-// Whether the screen is damaged due to scrolling. Sometimes msg_scrolled
-// is reset before the screen is redrawn, so we need to keep track of this.
-EXTERN bool msg_did_scroll INIT( = false);
-
 EXTERN char *keep_msg INIT( = NULL);         // msg to be shown after redraw
 EXTERN int keep_msg_attr INIT( = 0);         // highlight attr for keep_msg
 EXTERN bool need_fileinfo INIT( = false);    // do fileinfo() after redraw
-EXTERN int msg_scroll INIT( = false);        // msg_start() will scroll
-EXTERN bool msg_didout INIT( = false);       // msg_outstr() was used in line
-EXTERN bool msg_didany INIT( = false);       // msg_outstr() was used at all
 EXTERN bool msg_nowait INIT( = false);       // don't wait for this msg
 EXTERN int emsg_off INIT( = 0);              // don't display errors for now,
                                              // unless 'debug' is set.
 EXTERN bool info_message INIT( = false);     // printing informative message
 EXTERN bool msg_hist_off INIT( = false);     // don't add messages to history
-EXTERN bool need_clr_eos INIT( = false);     // need to clear text before
-                                             // displaying a message.
 EXTERN int emsg_skip INIT( = 0);             // don't display errors for
                                              // expression that is skipped
 EXTERN bool emsg_severe INIT( = false);      // use message of next of several
@@ -192,23 +175,12 @@ EXTERN int ex_exitval INIT( = 0);            // exit value for ex mode
 EXTERN bool emsg_on_display INIT( = false);  // there is an error message
 EXTERN bool rc_did_emsg INIT( = false);      // vim_regcomp() called emsg()
 
-EXTERN int no_wait_return INIT( = 0);         // don't wait for return for now
-EXTERN bool need_wait_return INIT( = false);  // need to wait for return later
-EXTERN bool did_wait_return INIT( = false);   // wait_return() was used and
-                                              // nothing written since then
 EXTERN bool need_maketitle INIT( = true);     // call maketitle() soon
 
-EXTERN bool quit_more INIT( = false);        // 'q' hit at "--more--" msg
 EXTERN int vgetc_busy INIT( = 0);            // when inside vgetc() then > 0
 
 EXTERN bool didset_vim INIT( = false);         // did set $VIM ourselves
 EXTERN bool didset_vimruntime INIT( = false);  // idem for $VIMRUNTIME
-
-/// Lines left before a "more" message.  Ex mode needs to be able to reset this
-/// after you type something.
-EXTERN int lines_left INIT( = -1);           // lines left for listing
-EXTERN bool msg_no_more INIT( = false);      // don't use more prompt, truncate
-                                             // messages
 
 EXTERN int ex_nesting_level INIT( = 0);          // nesting level
 EXTERN int debug_break_level INIT( = -1);        // break below this level

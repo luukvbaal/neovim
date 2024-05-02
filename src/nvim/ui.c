@@ -125,7 +125,6 @@ static void ui_log(const char *funname)
 void ui_init(void)
 {
   default_grid.handle = 1;
-  msg_grid_adj.target = &default_grid;
   ui_comp_init();
 }
 
@@ -543,7 +542,6 @@ void ui_flush(void)
   cmdline_ui_flush();
   win_ui_flush(false);
   msg_ext_ui_flush();
-  msg_scroll_flush();
 
   if (pending_cursor_update) {
     ui_call_grid_cursor_goto(cursor_grid_handle, cursor_row, cursor_col);

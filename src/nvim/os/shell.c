@@ -922,10 +922,7 @@ static int do_os_system(char **argv, const char *input, size_t len, char **outpu
   ui_busy_start();
   ui_flush();
   if (forward_output) {
-    msg_sb_eol();
     msg_start();
-    msg_no_more = true;
-    lines_left = -1;
   }
   int exitcode = process_wait(proc, -1, NULL);
   if (!got_int && out_data_decide_throttle(0)) {
@@ -934,10 +931,7 @@ static int do_os_system(char **argv, const char *input, size_t len, char **outpu
   }
   if (forward_output) {
     // caller should decide if wait_return() is invoked
-    no_wait_return++;
     msg_end();
-    no_wait_return--;
-    msg_no_more = false;
   }
 
   ui_busy_stop();

@@ -592,35 +592,22 @@ static void redraw_wildmenu(expand_T *xp, int num_matches, char **matches, int m
   int row = cmdline_row - 1;
   if (row >= 0) {
     if (wild_menu_showing == 0 || wild_menu_showing == WM_LIST) {
-      if (msg_scrolled > 0) {
-        // Put the wildmenu just above the command line.  If there is
-        // no room, scroll the screen one line up.
-        if (cmdline_row == Rows - 1) {
-          msg_scroll_up(false, false);
-          msg_scrolled++;
-        } else {
-          cmdline_row++;
-          row++;
-        }
-        wild_menu_showing = WM_SCROLLED;
-      } else {
-        // Create status line if needed by setting 'laststatus' to 2.
-        // Set 'winminheight' to zero to avoid that the window is
-        // resized.
-        if (lastwin->w_status_height == 0 && global_stl_height() == 0) {
-          save_p_ls = (int)p_ls;
-          save_p_wmh = (int)p_wmh;
-          p_ls = 2;
-          p_wmh = 0;
-          last_status(false);
-        }
-        wild_menu_showing = WM_SHOWN;
+      // Create status line if needed by setting 'laststatus' to 2.
+      // Set 'winminheight' to zero to avoid that the window is
+      // resized.
+      if (lastwin->w_status_height == 0 && global_stl_height() == 0) {
+        save_p_ls = (int)p_ls;
+        save_p_wmh = (int)p_wmh;
+        p_ls = 2;
+        p_wmh = 0;
+        last_status(false);
       }
+      wild_menu_showing = WM_SHOWN;
     }
 
     // Tricky: wildmenu can be drawn either over a status line, or at empty
     // scrolled space in the message output
-    grid_line_start((wild_menu_showing == WM_SCROLLED) ? &msg_grid_adj : &default_grid, row);
+    grid_line_start(&default_grid, row);
 
     grid_line_puts(0, buf, -1, attr);
     if (selstart != NULL && highlight) {
@@ -998,7 +985,7 @@ static void showmatches_oneline(expand_T *xp, char **matches, int numMatches, in
       msg_advance(maxlen + 1);
       msg_puts(p);
       msg_advance(maxlen + 3);
-      msg_outtrans_long(p + 2, HL_ATTR(HLF_D));
+      msg_outtrans(p + 2, HL_ATTR(HLF_D));
       break;
     }
     for (int i = maxlen - lastlen; --i >= 0;) {
@@ -1036,10 +1023,6 @@ static void showmatches_oneline(expand_T *xp, char **matches, int numMatches, in
       p = SHOW_MATCH(j);
     }
     lastlen = msg_outtrans(p, isdir ? dir_attr : 0);
-  }
-  if (msg_col > 0) {  // when not wrapped around
-    msg_clr_eos();
-    msg_putchar('\n');
   }
 }
 
@@ -1085,12 +1068,9 @@ int showmatches(expand_T *xp, bool wildmenu)
   }
 
   if (!wildmenu) {
-    msg_didany = false;                 // lines_left will be set
     msg_start();                        // prepare for paging
     msg_putchar('\n');
     ui_flush();
-    cmdline_row = msg_row;
-    msg_didany = false;                 // lines_left will be set again
     msg_start();                        // prepare for paging
   }
 
@@ -1131,7 +1111,6 @@ int showmatches(expand_T *xp, bool wildmenu)
 
     if (xp->xp_context == EXPAND_TAGS_LISTFILES) {
       msg_puts_attr(_("tagname"), HL_ATTR(HLF_T));
-      msg_clr_eos();
       msg_advance(maxlen - 3);
       msg_puts_attr(_(" kind file\n"), HL_ATTR(HLF_T));
     }
@@ -1144,10 +1123,6 @@ int showmatches(expand_T *xp, bool wildmenu)
         break;
       }
     }
-
-    // we redraw the command below the lines that we have just listed
-    // This is a bit tricky, but it saves a lot of screen updating.
-    cmdline_row = msg_row;      // will put it back later
   }
 
   if (xp->xp_numfiles == -1) {
@@ -3499,7 +3474,6 @@ void wildmenu_cleanup(CmdlineInfo *cclp)
 
   if (wild_menu_showing == WM_SCROLLED) {
     // Entered command line, move it up
-    cmdline_row--;
     redrawcmd();
     wild_menu_showing = 0;
   } else if (save_p_ls != -1) {

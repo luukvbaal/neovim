@@ -46,7 +46,6 @@ int ask_yesno(const char *const str, const bool direct)
 {
   const int save_State = State;
 
-  no_wait_return++;
   State = MODE_CONFIRM;  // Mouse behaves like with :confirm.
   setmouse();  // Disable mouse in xterm.
   no_mapping++;
@@ -67,7 +66,6 @@ int ask_yesno(const char *const str, const bool direct)
     msg_putchar(r);  // Show what you typed.
     ui_flush();
   }
-  no_wait_return--;
   State = save_State;
   setmouse();
   no_mapping--;
@@ -179,7 +177,6 @@ int get_number(int colon, bool *mouse_used)
   no_mapping++;
   allow_keys++;  // no mapping here, but recognize keys
   while (true) {
-    ui_cursor_goto(msg_row, msg_col);
     int c = safe_vgetc();
     if (ascii_isdigit(c)) {
       if (vim_append_digit_int(&n, c - '0') == FAIL) {
@@ -199,9 +196,6 @@ int get_number(int colon, bool *mouse_used)
       break;
     } else if (n == 0 && c == ':' && colon) {
       stuffcharReadbuff(':');
-      if (!exmode_active) {
-        cmdline_row = msg_row;
-      }
       skip_redraw = true;           // skip redraw once
       do_redraw = false;
       break;
@@ -233,25 +227,12 @@ int prompt_for_number(bool *mouse_used)
 
   // Set the state such that text can be selected/copied/pasted and we still
   // get mouse events.
-  int save_cmdline_row = cmdline_row;
-  cmdline_row = 0;
   int save_State = State;
   State = MODE_ASKMORE;  // prevents a screen update when using a timer
   // May show different mouse shape.
   setmouse();
 
   int i = get_number(true, mouse_used);
-  if (KeyTyped) {
-    // don't call wait_return() now
-    if (msg_row > 0) {
-      cmdline_row = msg_row - 1;
-    }
-    need_wait_return = false;
-    msg_didany = false;
-    msg_didout = false;
-  } else {
-    cmdline_row = save_cmdline_row;
-  }
   State = save_State;
   // May need to restore mouse shape.
   setmouse();

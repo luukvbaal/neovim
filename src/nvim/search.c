@@ -1236,20 +1236,8 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char *pat, size_t patlen
       if (!shortmess(SHM_SEARCHCOUNT) || cmd_silent) {
         // Reserve enough space for the search pattern + offset +
         // search stat.  Use all the space available, so that the
-        // search state is right aligned.  If there is not enough space
-        // msg_strtrunc() will shorten in the middle.
-        if (ui_has(kUIMessages)) {
-          msgbufsize = 0;  // adjusted below
-        } else if (msg_scrolled != 0 && !cmd_silent) {
-          // Use all the columns.
-          msgbufsize = (size_t)((Rows - msg_row) * Columns - 1);
-        } else {
-          // Use up to 'showcmd' column.
-          msgbufsize = (size_t)((Rows - msg_row - 1) * Columns + sc_col - 1);
-        }
-        if (msgbufsize < plen + off_len + SEARCH_STAT_BUF_LEN + 3) {
-          msgbufsize = plen + off_len + SEARCH_STAT_BUF_LEN + 3;
-        }
+        // search state is right aligned.
+        msgbufsize = plen + off_len + SEARCH_STAT_BUF_LEN + 3;
       } else {
         // Reserve enough space for the search pattern + offset.
         msgbufsize = plen + off_len + 3;
@@ -1298,10 +1286,7 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char *pat, size_t patlen
           }
         }
         msg_outtrans(msgbuf, 0);
-        msg_clr_eos();
-        msg_check();
 
-        gotocmdline(false);
         ui_flush();
         msg_nowait = true;  // don't wait for this message
       }
@@ -3758,7 +3743,6 @@ void find_pattern_in_path(char *ptr, Direction dir, size_t len, bool whole, bool
         if (did_show) {
           msg_putchar('\n');  // cursor below last one
         } else {
-          gotocmdline(true);  // cursor at status line
           msg_puts_title(_("--- Included files "));
           if (action != ACTION_SHOW_ALL) {
             msg_puts_title(_("not found "));
@@ -3864,11 +3848,8 @@ void find_pattern_in_path(char *ptr, Direction dir, size_t len, bool whole, bool
           files[depth].lnum = 0;
           files[depth].matched = false;
           if (action == ACTION_EXPAND) {
-            msg_hist_off = true;                // reset in msg_trunc()
-            vim_snprintf(IObuff, IOSIZE,
-                         _("Scanning included file: %s"),
-                         new_fname);
-            msg_trunc(IObuff, true, HL_ATTR(HLF_R));
+            vim_snprintf(IObuff, IOSIZE, _("Scanning included file: %s"), new_fname);
+            msg(IObuff, HL_ATTR(HLF_R));
           } else if (p_verbose >= 5) {
             verbose_enter();
             smsg(0, _("Searching included file %s"), new_fname);
@@ -4033,9 +4014,6 @@ search_line:
         }
       } else if (action == ACTION_SHOW_ALL) {
         found = true;
-        if (!did_show) {
-          gotocmdline(true);                    // cursor at status line
-        }
         if (curr_fname != prev_fname) {
           if (did_show) {
             msg_putchar('\n');                  // cursor below last one
@@ -4221,8 +4199,6 @@ static void show_pat_in_path(char *line, int type, bool did_show, int action, FI
 {
   if (did_show) {
     msg_putchar('\n');          // cursor below last one
-  } else if (!msg_silent) {
-    gotocmdline(true);          // cursor at status line
   }
   if (got_int) {                // 'q' typed at "--more--" message
     return;

@@ -380,7 +380,7 @@ static void win_redr_custom(win_T *wp, bool draw_winbar, bool draw_ruler)
       }
       maxwidth -= col;
       if (!in_status_line) {
-        grid = &msg_grid_adj;
+        grid = &default_grid;
         row = Rows - 1;
         maxwidth--;  // writing in last column may cause scrolling
         fillchar = schar_from_ascii(' ');

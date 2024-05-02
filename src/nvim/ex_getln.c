@@ -558,7 +558,6 @@ static void may_do_incsearch_highlighting(int firstc, int count, incsearch_state
     curwin->w_cursor = end_pos;
   }
 
-  msg_starthere();
   redrawcmdline();
   s->did_incsearch = true;
 }
@@ -658,10 +657,6 @@ static void init_ccline(int firstc, int indent)
   ccline.cmdlen = ccline.cmdpos = 0;
   ccline.cmdbuff[0] = NUL;
 
-  ccline.last_colors = (ColoredCmdline){ .cmdbuff = NULL,
-                                         .colors = KV_INITIAL_VALUE };
-  sb_text_start_cmdline();
-
   // autoindent for :insert and :append
   if (firstc <= 0) {
     memset(ccline.cmdbuff, ' ', (size_t)indent);
@@ -689,7 +684,6 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
     .firstc = firstc,
     .count = count,
     .indent = indent,
-    .save_msg_scroll = msg_scroll,
     .save_State = State,
     .prev_cmdpos = -1,
     .ignore_drag_release = true,
@@ -733,16 +727,11 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
   cmdmsg_rl = (curwin->w_p_rl && *curwin->w_p_rlc == 's'
                && (s->firstc == '/' || s->firstc == '?'));
 
-  msg_grid_validate();
-
   redir_off = true;             // don't redirect the typed command
   if (!cmd_silent) {
-    gotocmdline(true);
     redrawcmdprompt();          // draw prompt or indent
     ccline.cmdspos = cmd_startcol();
-    if (!msg_scroll) {
-      msg_ext_clear(false);
-    }
+    msg_ext_clear(false);
   }
   s->xpc.xp_context = EXPAND_NOTHING;
   s->xpc.xp_backslash = XP_BS_NONE;
@@ -755,10 +744,6 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
     s->xpc.xp_pattern = ccline.cmdbuff;
     s->xpc.xp_arg = ccline.xp_arg;
   }
-
-  // Avoid scrolling when called by a recursive do_cmdline(), e.g. when
-  // doing ":@0" when register 0 doesn't contain a CR.
-  msg_scroll = false;
 
   State = MODE_CMDLINE;
 
@@ -801,7 +786,6 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
     tl_ret = try_leave(&tstate, &err);
     if (!tl_ret && ERROR_SET(&err)) {
       msg_putchar('\n');
-      msg_scroll = true;
       msg_puts_attr(err.msg, HL_ATTR(HLF_E)|MSG_HIST);
       api_clear_error(&err);
       redrawcmd();
@@ -907,14 +891,6 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
     }
   }
 
-  // If the screen was shifted up, redraw the whole screen (later).
-  // If the line is too long, clear it, so ruler and shown command do
-  // not get printed in the middle of it.
-  msg_check();
-  if (p_ch == 0 && !ui_has(kUIMessages)) {
-    set_must_redraw(UPD_VALID);
-  }
-  msg_scroll = s->save_msg_scroll;
   redir_off = false;
 
   if (!tl_ret && ERROR_SET(&err)) {
@@ -922,11 +898,6 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
     emsg(err.msg);
     did_emsg = false;
     api_clear_error(&err);
-  }
-
-  // When the command line was typed, no need for a wait-return prompt.
-  if (s->some_key_typed && tl_ret) {
-    need_wait_return = false;
   }
 
   set_option_direct(kOptInccommand, CSTR_AS_OPTVAL(s->save_p_icm), 0, SID_NONE);
@@ -937,19 +908,14 @@ static uint8_t *command_line_enter(int firstc, int count, int indent, bool clear
   }
   may_trigger_modechanged();
   setmouse();
-  sb_text_end_cmdline();
 
 theend:
   xfree(s->save_p_icm);
-  xfree(ccline.last_colors.cmdbuff);
-  kv_destroy(ccline.last_colors.colors);
 
   char *p = ccline.cmdbuff;
 
-  if (ui_has(kUICmdline)) {
-    ui_call_cmdline_hide(ccline.level);
-    msg_ext_clear_later();
-  }
+  ui_call_cmdline_hide(ccline.level);
+  msg_ext_clear_later();
   if (!cmd_silent) {
     status_redraw_all();  // redraw to show mode change
   }
@@ -970,9 +936,7 @@ static int command_line_check(VimState *state)
   CommandLineState *s = (CommandLineState *)state;
 
   redir_off = true;        // Don't redirect the typed command.
-  // Repeated, because a ":redir" inside
-  // completion may switch it on.
-  quit_more = false;       // reset after CTRL-D which had a more-prompt
+  // Repeated, because a ":redir" inside completion may switch it on.
 
   did_emsg = false;        // There can't really be a reason why an error
                            // that occurs while typing a command should
@@ -1186,7 +1150,7 @@ static int command_line_execute(VimState *state, int key)
     if (s->c == K_EVENT) {
       state_handle_k_event();
     } else if (s->c == K_COMMAND) {
-      do_cmdline(NULL, getcmdkeycmd, NULL, DOCMD_NOWAIT);
+      do_cmdline(NULL, getcmdkeycmd, NULL, 0);
     } else {
       map_execute_lua(false);
     }
@@ -1354,9 +1318,6 @@ static int command_line_execute(VimState *state, int key)
       }
 
       if (!cmd_silent) {
-        if (!ui_has(kUICmdline)) {
-          msg_cursor_goto(msg_row, 0);
-        }
         ui_flush();
       }
       return 0;
@@ -1573,10 +1534,6 @@ static int command_line_erase_chars(CommandLineState *s)
     }
 
     XFREE_CLEAR(ccline.cmdbuff);        // no commandline to return
-    if (!cmd_silent && !ui_has(kUICmdline)) {
-      msg_col = 0;
-      msg_putchar(' ');                             // delete ':'
-    }
     s->is_state.search_start = s->is_state.save_cursor;
     redraw_cmdline = true;
     return GOTO_NORMAL_MODE;
@@ -2121,14 +2078,8 @@ static int command_line_handle_key(CommandLineState *s)
     ccline.special_char = NUL;
     // may need to remove ^ when composing char was typed
     if (utf_iscomposing(s->c) && !cmd_silent) {
-      if (ui_has(kUICmdline)) {
-        // TODO(bfredl): why not make unputcmdline also work with true?
-        unputcmdline();
-      } else {
-        draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
-        msg_putchar(' ');
-        cursorcmd();
-      }
+      // TODO(bfredl): why not make unputcmdline also work with true?
+      unputcmdline();
     }
     break;
 
@@ -2653,7 +2604,6 @@ static void do_autocmd_cmdlinechanged(int firstc)
     bool tl_ret = try_leave(&tstate, &err);
     if (!tl_ret && ERROR_SET(&err)) {
       msg_putchar('\n');
-      msg_scroll = true;
       msg_puts_attr(err.msg, HL_ATTR(HLF_E)|MSG_HIST);
       api_clear_error(&err);
       redrawcmd();
@@ -2689,17 +2639,6 @@ static int command_line_changed(CommandLineState *s)
     }
   }
 
-  if (p_arshape && !p_tbidi) {
-    // Always redraw the whole command line to fix shaping and
-    // right-left typing.  Not efficient, but it works.
-    // Do it only when there are no characters left to read
-    // to avoid useless intermediate redraws.
-    // if cmdline is external the ui handles shaping, no redraw needed.
-    if (!ui_has(kUICmdline) && vpeekc() == NUL) {
-      redrawcmd();
-    }
-  }
-
   return 1;
 }
 
@@ -2712,9 +2651,7 @@ static void abandon_cmdline(void)
   ccline.cmdpos = 0;
   cmdline_ui_flush();
   XFREE_CLEAR(ccline.cmdbuff);
-  if (msg_scrolled == 0) {
-    compute_cmdrow();
-  }
+  compute_cmdrow();
   msg("", 0);
   redraw_cmdline = true;
 }
@@ -2762,8 +2699,6 @@ char *getcmdline_prompt(const int firstc, const char *const prompt, const int at
                         const Callback highlight_callback)
   FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_MALLOC
 {
-  const int msg_col_save = msg_col;
-
   CmdlineInfo save_ccline;
   bool did_save_ccline = false;
   if (ccline.cmdbuff != NULL) {
@@ -2779,7 +2714,6 @@ char *getcmdline_prompt(const int firstc, const char *const prompt, const int at
   ccline.xp_context = xp_context;
   ccline.xp_arg = (char *)xp_arg;
   ccline.input_fn = (firstc == '@');
-  ccline.highlight_callback = highlight_callback;
 
   int msg_silent_saved = msg_silent;
   msg_silent = 0;
@@ -2790,13 +2724,6 @@ char *getcmdline_prompt(const int firstc, const char *const prompt, const int at
     restore_cmdline(&save_ccline);
   }
   msg_silent = msg_silent_saved;
-  // Restore msg_col, the prompt from input() may have changed it.
-  // But only if called recursively and the commandline is therefore being
-  // restored to an old one; if not, the input() prompt stays on the screen,
-  // so we need its modified msg_col left intact.
-  if (ccline.cmdbuff != NULL) {
-    msg_col = msg_col_save;
-  }
 
   return ret;
 }
@@ -3044,329 +2971,10 @@ void realloc_cmdbuff(int len)
   }
 }
 
-enum { MAX_CB_ERRORS = 1, };
-
-/// Color expression cmdline using built-in expressions parser
-///
-/// @param[in]  colored_ccline  Command-line to color.
-/// @param[out]  ret_ccline_colors  What should be colored.
-///
-/// Always colors the whole cmdline.
-static void color_expr_cmdline(const CmdlineInfo *const colored_ccline,
-                               ColoredCmdline *const ret_ccline_colors)
-  FUNC_ATTR_NONNULL_ALL
-{
-  ParserLine parser_lines[] = {
-    {
-      .data = colored_ccline->cmdbuff,
-      .size = strlen(colored_ccline->cmdbuff),
-      .allocated = false,
-    },
-    { NULL, 0, false },
-  };
-  ParserLine *plines_p = parser_lines;
-  ParserHighlight colors;
-  kvi_init(colors);
-  ParserState pstate;
-  viml_parser_init(&pstate, parser_simple_get_line, &plines_p, &colors);
-  ExprAST east = viml_pexpr_parse(&pstate, kExprFlagsDisallowEOC);
-  viml_pexpr_free_ast(east);
-  viml_parser_destroy(&pstate);
-  kv_resize(ret_ccline_colors->colors, kv_size(colors));
-  size_t prev_end = 0;
-  for (size_t i = 0; i < kv_size(colors); i++) {
-    const ParserHighlightChunk chunk = kv_A(colors, i);
-    assert(chunk.start.col < INT_MAX);
-    assert(chunk.end_col < INT_MAX);
-    if (chunk.start.col != prev_end) {
-      kv_push(ret_ccline_colors->colors, ((CmdlineColorChunk) {
-        .start = (int)prev_end,
-        .end = (int)chunk.start.col,
-        .attr = 0,
-      }));
-    }
-    const int id = syn_name2id(chunk.group);
-    const int attr = (id == 0 ? 0 : syn_id2attr(id));
-    kv_push(ret_ccline_colors->colors, ((CmdlineColorChunk) {
-      .start = (int)chunk.start.col,
-      .end = (int)chunk.end_col,
-      .attr = attr,
-    }));
-    prev_end = chunk.end_col;
-  }
-  if (prev_end < (size_t)colored_ccline->cmdlen) {
-    kv_push(ret_ccline_colors->colors, ((CmdlineColorChunk) {
-      .start = (int)prev_end,
-      .end = colored_ccline->cmdlen,
-      .attr = 0,
-    }));
-  }
-  kvi_destroy(colors);
-}
-
-/// Color command-line
-///
-/// Should use built-in command parser or user-specified one. Currently only the
-/// latter is supported.
-///
-/// @param[in,out]  colored_ccline  Command-line to color. Also holds a cache:
-///                                 if ->prompt_id and ->cmdbuff values happen
-///                                 to be equal to those from colored_cmdline it
-///                                 will just do nothing, assuming that ->colors
-///                                 already contains needed data.
-///
-/// Always colors the whole cmdline.
-///
-/// @return true if draw_cmdline may proceed, false if it does not need anything
-///         to do.
-static bool color_cmdline(CmdlineInfo *colored_ccline)
-  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
-{
-  bool printed_errmsg = false;
-
-#define PRINT_ERRMSG(...) \
-  do { \
-    msg_putchar('\n'); \
-    msg_printf_attr(HL_ATTR(HLF_E)|MSG_HIST, __VA_ARGS__); \
-    printed_errmsg = true; \
-  } while (0)
-  bool ret = true;
-
-  ColoredCmdline *ccline_colors = &colored_ccline->last_colors;
-
-  // Check whether result of the previous call is still valid.
-  if (ccline_colors->prompt_id == colored_ccline->prompt_id
-      && ccline_colors->cmdbuff != NULL
-      && strcmp(ccline_colors->cmdbuff, colored_ccline->cmdbuff) == 0) {
-    return ret;
-  }
-
-  kv_size(ccline_colors->colors) = 0;
-
-  if (colored_ccline->cmdbuff == NULL || *colored_ccline->cmdbuff == NUL) {
-    // Nothing to do, exiting.
-    XFREE_CLEAR(ccline_colors->cmdbuff);
-    return ret;
-  }
-
-  bool arg_allocated = false;
-  typval_T arg = {
-    .v_type = VAR_STRING,
-    .vval.v_string = colored_ccline->cmdbuff,
-  };
-  typval_T tv = { .v_type = VAR_UNKNOWN };
-
-  static unsigned prev_prompt_id = UINT_MAX;
-  static int prev_prompt_errors = 0;
-  Callback color_cb = CALLBACK_NONE;
-  bool can_free_cb = false;
-  TryState tstate;
-  Error err = ERROR_INIT;
-  const char *err_errmsg = e_intern2;
-  bool dgc_ret = true;
-  bool tl_ret = true;
-
-  if (colored_ccline->prompt_id != prev_prompt_id) {
-    prev_prompt_errors = 0;
-    prev_prompt_id = colored_ccline->prompt_id;
-  } else if (prev_prompt_errors >= MAX_CB_ERRORS) {
-    goto color_cmdline_end;
-  }
-  if (colored_ccline->highlight_callback.type != kCallbackNone) {
-    // Currently this should only happen while processing input() prompts.
-    assert(colored_ccline->input_fn);
-    color_cb = colored_ccline->highlight_callback;
-  } else if (colored_ccline->cmdfirstc == ':') {
-    try_enter(&tstate);
-    err_errmsg = N_("E5408: Unable to get g:Nvim_color_cmdline callback: %s");
-    dgc_ret = tv_dict_get_callback(&globvardict, S_LEN("Nvim_color_cmdline"),
-                                   &color_cb);
-    tl_ret = try_leave(&tstate, &err);
-    can_free_cb = true;
-  } else if (colored_ccline->cmdfirstc == '=') {
-    color_expr_cmdline(colored_ccline, ccline_colors);
-  }
-  if (!tl_ret || !dgc_ret) {
-    goto color_cmdline_error;
-  }
-
-  if (color_cb.type == kCallbackNone) {
-    goto color_cmdline_end;
-  }
-  if (colored_ccline->cmdbuff[colored_ccline->cmdlen] != NUL) {
-    arg_allocated = true;
-    arg.vval.v_string = xmemdupz(colored_ccline->cmdbuff, (size_t)colored_ccline->cmdlen);
-  }
-  // msg_start() called by e.g. :echo may shift command-line to the first column
-  // even though msg_silent is here. Two ways to workaround this problem without
-  // altering message.c: use full_screen or save and restore msg_col.
-  //
-  // Saving and restoring full_screen does not work well with :redraw!. Saving
-  // and restoring msg_col is neither ideal, but while with full_screen it
-  // appears shifted one character to the right and cursor position is no longer
-  // correct, with msg_col it just misses leading `:`. Since `redraw!` in
-  // callback lags this is least of the user problems.
-  //
-  // Also using try_enter() because error messages may overwrite typed
-  // command-line which is not expected.
-  getln_interrupted_highlight = false;
-  try_enter(&tstate);
-  err_errmsg = N_("E5407: Callback has thrown an exception: %s");
-  const int saved_msg_col = msg_col;
-  msg_silent++;
-  const bool cbcall_ret = callback_call(&color_cb, 1, &arg, &tv);
-  msg_silent--;
-  msg_col = saved_msg_col;
-  if (got_int) {
-    getln_interrupted_highlight = true;
-  }
-  if (!try_leave(&tstate, &err) || !cbcall_ret) {
-    goto color_cmdline_error;
-  }
-  if (tv.v_type != VAR_LIST) {
-    PRINT_ERRMSG("%s", _("E5400: Callback should return list"));
-    goto color_cmdline_error;
-  }
-  if (tv.vval.v_list == NULL) {
-    goto color_cmdline_end;
-  }
-  varnumber_T prev_end = 0;
-  int i = 0;
-  TV_LIST_ITER_CONST(tv.vval.v_list, li, {
-    if (TV_LIST_ITEM_TV(li)->v_type != VAR_LIST) {
-      PRINT_ERRMSG(_("E5401: List item %i is not a List"), i);
-      goto color_cmdline_error;
-    }
-    const list_T *const l = TV_LIST_ITEM_TV(li)->vval.v_list;
-    if (tv_list_len(l) != 3) {
-      PRINT_ERRMSG(_("E5402: List item %i has incorrect length: %d /= 3"),
-                   i, tv_list_len(l));
-      goto color_cmdline_error;
-    }
-    bool error = false;
-    const varnumber_T start = (
-                               tv_get_number_chk(TV_LIST_ITEM_TV(tv_list_first(l)), &error));
-    if (error) {
-      goto color_cmdline_error;
-    } else if (!(prev_end <= start && start < colored_ccline->cmdlen)) {
-      PRINT_ERRMSG(_("E5403: Chunk %i start %" PRIdVARNUMBER " not in range "
-                     "[%" PRIdVARNUMBER ", %i)"),
-                   i, start, prev_end, colored_ccline->cmdlen);
-      goto color_cmdline_error;
-    } else if (utf8len_tab_zero[(uint8_t)colored_ccline->cmdbuff[start]] == 0) {
-      PRINT_ERRMSG(_("E5405: Chunk %i start %" PRIdVARNUMBER " splits "
-                     "multibyte character"), i, start);
-      goto color_cmdline_error;
-    }
-    if (start != prev_end) {
-      kv_push(ccline_colors->colors, ((CmdlineColorChunk) {
-        .start = (int)prev_end,
-        .end = (int)start,
-        .attr = 0,
-      }));
-    }
-    const varnumber_T end =
-      tv_get_number_chk(TV_LIST_ITEM_TV(TV_LIST_ITEM_NEXT(l, tv_list_first(l))), &error);
-    if (error) {
-      goto color_cmdline_error;
-    } else if (!(start < end && end <= colored_ccline->cmdlen)) {
-      PRINT_ERRMSG(_("E5404: Chunk %i end %" PRIdVARNUMBER " not in range "
-                     "(%" PRIdVARNUMBER ", %i]"),
-                   i, end, start, colored_ccline->cmdlen);
-      goto color_cmdline_error;
-    } else if (end < colored_ccline->cmdlen
-               && (utf8len_tab_zero[(uint8_t)colored_ccline->cmdbuff[end]]
-                   == 0)) {
-      PRINT_ERRMSG(_("E5406: Chunk %i end %" PRIdVARNUMBER " splits multibyte "
-                     "character"), i, end);
-      goto color_cmdline_error;
-    }
-    prev_end = end;
-    const char *const group = tv_get_string_chk(TV_LIST_ITEM_TV(tv_list_last(l)));
-    if (group == NULL) {
-      goto color_cmdline_error;
-    }
-    const int id = syn_name2id(group);
-    const int attr = (id == 0 ? 0 : syn_id2attr(id));
-    kv_push(ccline_colors->colors, ((CmdlineColorChunk) {
-      .start = (int)start,
-      .end = (int)end,
-      .attr = attr,
-    }));
-    i++;
-  });
-  if (prev_end < colored_ccline->cmdlen) {
-    kv_push(ccline_colors->colors, ((CmdlineColorChunk) {
-      .start = (int)prev_end,
-      .end = colored_ccline->cmdlen,
-      .attr = 0,
-    }));
-  }
-  prev_prompt_errors = 0;
-color_cmdline_end:
-  assert(!ERROR_SET(&err));
-  if (can_free_cb) {
-    callback_free(&color_cb);
-  }
-  xfree(ccline_colors->cmdbuff);
-  // Note: errors “output” is cached just as well as regular results.
-  ccline_colors->prompt_id = colored_ccline->prompt_id;
-  if (arg_allocated) {
-    ccline_colors->cmdbuff = arg.vval.v_string;
-  } else {
-    ccline_colors->cmdbuff = xmemdupz(colored_ccline->cmdbuff, (size_t)colored_ccline->cmdlen);
-  }
-  tv_clear(&tv);
-  return ret;
-color_cmdline_error:
-  if (ERROR_SET(&err)) {
-    PRINT_ERRMSG(_(err_errmsg), err.msg);
-    api_clear_error(&err);
-  }
-  assert(printed_errmsg);
-  (void)printed_errmsg;
-
-  prev_prompt_errors++;
-  kv_size(ccline_colors->colors) = 0;
-  redrawcmdline();
-  ret = false;
-  goto color_cmdline_end;
-#undef PRINT_ERRMSG
-}
-
-// Draw part of the cmdline at the current cursor position.  But draw stars
-// when cmdline_star is true.
 static void draw_cmdline(int start, int len)
 {
-  if (!color_cmdline(&ccline)) {
-    return;
-  }
-
-  if (ui_has(kUICmdline)) {
-    ccline.special_char = NUL;
-    ccline.redraw_state = kCmdRedrawAll;
-    return;
-  }
-
-  if (cmdline_star > 0) {
-    for (int i = 0; i < len; i++) {
-      msg_putchar('*');
-      i += utfc_ptr2len(ccline.cmdbuff + start + i) - 1;
-    }
-  } else {
-    if (kv_size(ccline.last_colors.colors)) {
-      for (size_t i = 0; i < kv_size(ccline.last_colors.colors); i++) {
-        CmdlineColorChunk chunk = kv_A(ccline.last_colors.colors, i);
-        if (chunk.end <= start) {
-          continue;
-        }
-        const int chunk_start = MAX(chunk.start, start);
-        msg_outtrans_len(ccline.cmdbuff + chunk_start, chunk.end - chunk_start, chunk.attr);
-      }
-    } else {
-      msg_outtrans_len(ccline.cmdbuff + start, len, 0);
-    }
-  }
+  ccline.special_char = NUL;
+  ccline.redraw_state = kCmdRedrawAll;
 }
 
 static void ui_ext_cmdline_show(CmdlineInfo *line)
@@ -3385,18 +2993,6 @@ static void ui_ext_cmdline_show(CmdlineInfo *line)
     ADD_C(item, INTEGER_OBJ(0));
     ADD_C(item, STRING_OBJ(cbuf_as_string(buf, len)));
     ADD_C(content, ARRAY_OBJ(item));
-  } else if (kv_size(line->last_colors.colors)) {
-    content = arena_array(&arena, kv_size(line->last_colors.colors));
-    for (size_t i = 0; i < kv_size(line->last_colors.colors); i++) {
-      CmdlineColorChunk chunk = kv_A(line->last_colors.colors, i);
-      Array item = arena_array(&arena, 2);
-      ADD_C(item, INTEGER_OBJ(chunk.attr));
-
-      assert(chunk.end >= chunk.start);
-      ADD_C(item, STRING_OBJ(cbuf_as_string(line->cmdbuff + chunk.start,
-                                            (size_t)(chunk.end - chunk.start))));
-      ADD_C(content, ARRAY_OBJ(item));
-    }
   } else {
     Array item = arena_array(&arena, 2);
     ADD_C(item, INTEGER_OBJ(0));
@@ -3449,10 +3045,6 @@ void ui_ext_cmdline_block_leave(void)
 /// assumes "redrawcmdline()" will already be invoked
 void cmdline_screen_cleared(void)
 {
-  if (!ui_has(kUICmdline)) {
-    return;
-  }
-
   if (cmdline_block.size) {
     ui_call_cmdline_block_show(cmdline_block);
   }
@@ -3502,14 +3094,7 @@ void putcmdline(char c, bool shift)
   if (cmd_silent) {
     return;
   }
-  if (!ui_has(kUICmdline)) {
-    msg_no_more = true;
-    msg_putchar(c);
-    if (shift) {
-      draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
-    }
-    msg_no_more = false;
-  } else if (ccline.redraw_state != kCmdRedrawAll) {
+  if (ccline.redraw_state != kCmdRedrawAll) {
     char charbuf[2] = { c, 0 };
     ui_call_cmdline_special_char(cstr_as_string(charbuf), shift,
                                  ccline.level);
@@ -3526,13 +3111,7 @@ void unputcmdline(void)
   if (cmd_silent) {
     return;
   }
-  msg_no_more = true;
-  if (ccline.cmdlen == ccline.cmdpos && !ui_has(kUICmdline)) {
-    msg_putchar(' ');
-  } else {
-    draw_cmdline(ccline.cmdpos, utfc_ptr2len(ccline.cmdbuff + ccline.cmdpos));
-  }
-  msg_no_more = false;
+  draw_cmdline(ccline.cmdpos, utfc_ptr2len(ccline.cmdbuff + ccline.cmdpos));
   cursorcmd();
   ccline.special_char = NUL;
   ui_cursor_shape();
@@ -3609,24 +3188,13 @@ void put_on_cmdline(const char *str, int len, bool redraw)
       // Also backup the cursor position.
       i = ptr2cells(ccline.cmdbuff + ccline.cmdpos);
       ccline.cmdspos -= i;
-      msg_col -= i;
-      if (msg_col < 0) {
-        msg_col += Columns;
-        msg_row--;
-      }
     }
   }
 
   if (redraw && !cmd_silent) {
-    msg_no_more = true;
     i = cmdline_row;
     cursorcmd();
     draw_cmdline(ccline.cmdpos, ccline.cmdlen - ccline.cmdpos);
-    // Avoid clearing the rest of the line too often.
-    if (cmdline_row != i || ccline.overstrike) {
-      msg_clr_eos();
-    }
-    msg_no_more = false;
   }
   if (KeyTyped) {
     m = Columns * Rows;
@@ -3653,10 +3221,6 @@ void put_on_cmdline(const char *str, int len, bool redraw)
     ccline.cmdpos += c;
     i += c;
     ccline.cmdpos++;
-  }
-
-  if (redraw) {
-    msg_check();
   }
 }
 
@@ -3783,7 +3347,6 @@ void redrawcmdline(void)
   if (cmd_silent) {
     return;
   }
-  need_wait_return = false;
   compute_cmdrow();
   redrawcmd();
   cursorcmd();
@@ -3792,81 +3355,22 @@ void redrawcmdline(void)
 
 static void redrawcmdprompt(void)
 {
-  if (cmd_silent) {
-    return;
-  }
-  if (ui_has(kUICmdline)) {
+  if (!cmd_silent) {
     ccline.redraw_state = kCmdRedrawAll;
-    return;
-  }
-  if (ccline.cmdfirstc != NUL) {
-    msg_putchar(ccline.cmdfirstc);
-  }
-  if (ccline.cmdprompt != NULL) {
-    msg_puts_attr(ccline.cmdprompt, ccline.cmdattr);
-    ccline.cmdindent = msg_col + (msg_row - cmdline_row) * Columns;
-    // do the reverse of cmd_startcol()
-    if (ccline.cmdfirstc != NUL) {
-      ccline.cmdindent--;
-    }
-  } else {
-    for (int i = ccline.cmdindent; i > 0; i--) {
-      msg_putchar(' ');
-    }
   }
 }
 
 // Redraw what is currently on the command line.
 void redrawcmd(void)
 {
-  if (cmd_silent) {
-    return;
-  }
-
-  if (ui_has(kUICmdline)) {
+  if (!cmd_silent) {
     draw_cmdline(0, ccline.cmdlen);
-    return;
   }
-
-  // when 'incsearch' is set there may be no command line while redrawing
-  if (ccline.cmdbuff == NULL) {
-    msg_cursor_goto(cmdline_row, 0);
-    msg_clr_eos();
-    return;
-  }
-
-  redrawing_cmdline = true;
-
-  sb_text_restart_cmdline();
-  msg_start();
-  redrawcmdprompt();
-
-  // Don't use more prompt, truncate the cmdline if it doesn't fit.
-  msg_no_more = true;
-  draw_cmdline(0, ccline.cmdlen);
-  msg_clr_eos();
-  msg_no_more = false;
-
-  ccline.cmdspos = cmd_screencol(ccline.cmdpos);
-
-  if (ccline.special_char != NUL) {
-    putcmdline(ccline.special_char, ccline.special_shift);
-  }
-
-  // An emsg() before may have set msg_scroll. This is used in normal mode,
-  // in cmdline mode we can reset them now.
-  msg_scroll = false;           // next message overwrites cmdline
-
-  // Typing ':' at the more prompt may set skip_redraw.  We don't want this
-  // in cmdline mode.
-  skip_redraw = false;
-
-  redrawing_cmdline = false;
 }
 
 void compute_cmdrow(void)
 {
-  if (exmode_active || msg_scrolled != 0) {
+  if (exmode_active) {
     cmdline_row = Rows - 1;
   } else {
     win_T *wp = lastwin_nofloating();
@@ -3876,7 +3380,6 @@ void compute_cmdrow(void)
   if (cmdline_row == Rows && p_ch > 0) {
     cmdline_row--;
   }
-  lines_left = cmdline_row;
 }
 
 void cursorcmd(void)
@@ -3884,34 +3387,9 @@ void cursorcmd(void)
   if (cmd_silent) {
     return;
   }
-
-  if (ui_has(kUICmdline)) {
-    if (ccline.redraw_state < kCmdRedrawPos) {
-      ccline.redraw_state = kCmdRedrawPos;
-    }
-    return;
+  if (ccline.redraw_state < kCmdRedrawPos) {
+    ccline.redraw_state = kCmdRedrawPos;
   }
-
-  msg_row = cmdline_row + (ccline.cmdspos / Columns);
-  msg_col = ccline.cmdspos % Columns;
-  if (msg_row >= Rows) {
-    msg_row = Rows - 1;
-  }
-
-  msg_cursor_goto(msg_row, msg_col);
-}
-
-void gotocmdline(bool clr)
-{
-  if (ui_has(kUICmdline)) {
-    return;
-  }
-  msg_start();
-  msg_col = 0;  // always start in column 0
-  if (clr) {  // clear the bottom line(s)
-    msg_clr_eos();  // will reset clear_cmdline
-  }
-  msg_cursor_goto(cmdline_row, 0);
 }
 
 // Check the word in front of the cursor for an abbreviation.
@@ -4409,9 +3887,6 @@ static int open_cmdwin(void)
   // Don't allow switching to another buffer.
   curbuf->b_ro_locked++;
 
-  // Showing the prompt may have set need_wait_return, reset it.
-  need_wait_return = false;
-
   const int histtype = hist_char2type(cmdwin_type);
   if (histtype == HIST_CMD || histtype == HIST_DEBUG) {
     if (p_wc == TAB) {
@@ -4450,10 +3925,8 @@ static int open_cmdwin(void)
   curwin->w_cursor.col = ccline.cmdpos;
   changed_line_abv_curs();
   invalidate_botline(curwin);
-  if (ui_has(kUICmdline)) {
-    ccline.redraw_state = kCmdRedrawNone;
-    ui_call_cmdline_hide(ccline.level);
-  }
+  ccline.redraw_state = kCmdRedrawNone;
+  ui_call_cmdline_hide(ccline.level);
   redraw_later(curwin, UPD_SOME_VALID);
 
   // No Ex mode here!

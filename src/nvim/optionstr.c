@@ -1151,7 +1151,6 @@ const char *did_set_display(optset_T *args FUNC_ATTR_UNUSED)
     return e_invarg;
   }
   init_chartab();
-  msg_grid_validate();
   return NULL;
 }
 

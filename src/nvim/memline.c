@@ -537,11 +537,8 @@ void ml_open_file(buf_T *buf)
   }
 
   if (*p_dir != NUL && mfp->mf_fname == NULL) {
-    need_wait_return = true;  // call wait_return() later
-    no_wait_return++;
     semsg(_("E303: Unable to open swap file for \"%s\", recovery impossible"),
           buf_spname(buf) != NULL ? buf_spname(buf) : buf->b_fname);
-    no_wait_return--;
   }
 
   // don't try to open a swapfile again
@@ -1202,10 +1199,8 @@ void ml_recover(bool checkext)
   if (got_int) {
     emsg(_("E311: Recovery Interrupted"));
   } else if (error) {
-    no_wait_return++;
     msg(">>>>>>>>>>>>>", 0);
     emsg(_("E312: Errors detected while recovering; look for lines starting with ???"));
-    no_wait_return--;
     msg(_("See \":help E312\" for more information."), 0);
     msg(">>>>>>>>>>>>>", 0);
   } else {
@@ -1224,7 +1219,6 @@ void ml_recover(bool checkext)
       msg_outnum((int)char_to_long(b0p->b0_pid));
     }
     msg_puts("\n\n");
-    cmdline_row = msg_row;
   }
   redraw_curbuf_later(UPD_NOT_VALID);
 
@@ -3259,7 +3253,6 @@ static void attention_message(buf_T *buf, char *fname)
 {
   assert(buf->b_fname != NULL);
 
-  no_wait_return++;
   emsg(_("E325: ATTENTION"));
   msg_puts(_("\nFound a swap file by the name \""));
   msg_home_replace(fname);
@@ -3293,8 +3286,6 @@ static void attention_message(buf_T *buf, char *fname)
   msg_puts(_("    If you did this already, delete the swap file \""));
   msg_outtrans(fname, 0);
   msg_puts(_("\"\n    to avoid this message.\n"));
-  cmdline_row = msg_row;
-  no_wait_return--;
 }
 
 /// Trigger the SwapExists autocommands.
@@ -3509,9 +3500,6 @@ static char *findswapname(buf_T *buf, char **dirp, char *old_fname, bool *found_
             }
             choice = (sea_choice_T)dialog_result;
             xfree(name);
-
-            // pretend screen didn't scroll, need redraw anyway
-            msg_reset_scroll();
           }
 
           switch (choice) {
@@ -3535,10 +3523,6 @@ static char *findswapname(buf_T *buf, char **dirp, char *old_fname, bool *found_
             break;
           case SEA_CHOICE_NONE:
             msg_puts("\n");
-            if (msg_silent == 0) {
-              // call wait_return() later
-              need_wait_return = true;
-            }
             break;
           }
 

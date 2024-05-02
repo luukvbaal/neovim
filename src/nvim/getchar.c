@@ -1386,10 +1386,8 @@ void openscript(char *name, bool directly)
     int save_State = State;
     int save_restart_edit = restart_edit;
     int save_finish_op = finish_op;
-    int save_msg_scroll = msg_scroll;
 
     State = MODE_NORMAL;
-    msg_scroll = false;         // no msg scrolling in Normal mode
     restart_edit = 0;           // don't go to Insert mode
     clear_oparg(&oa);
     finish_op = false;
@@ -1402,7 +1400,6 @@ void openscript(char *name, bool directly)
     } while (curscript >= oldcurscript);
 
     State = save_State;
-    msg_scroll = save_msg_scroll;
     restart_edit = save_restart_edit;
     finish_op = save_finish_op;
   }
@@ -1852,11 +1849,6 @@ static void getchar_common(typval_T *argvars, typval_T *rettv)
   no_mapping++;
   allow_keys++;
   while (true) {
-    if (msg_col > 0) {
-      // Position the cursor. Needed after a message that ends in a space.
-      ui_cursor_goto(msg_row, msg_col);
-    }
-
     if (argvars[0].v_type == VAR_UNKNOWN) {
       // getchar(): blocking wait.
       // TODO(bfredl): deduplicate shared logic with state_enter ?
@@ -2372,14 +2364,6 @@ static int handle_mapping(int *keylenp, const bool *timedout, int *mapdepth)
           buf[2] = KE_IGNORE;
           buf[3] = NUL;
           map_str = xstrdup(buf);
-          if (State & MODE_CMDLINE) {
-            // redraw the command below the error
-            msg_didout = true;
-            if (msg_row < cmdline_row) {
-              msg_row = cmdline_row;
-            }
-            redrawcmd();
-          }
         } else if (State & (MODE_NORMAL | MODE_INSERT)) {
           // otherwise, just put back the cursor
           setcursor();
@@ -2767,7 +2751,7 @@ static int vgetorpeek(bool advance)
         // redrawing was postponed because there was something in the
         // input buffer (e.g., termresponse).
         if (((State & MODE_INSERT) != 0 || p_lz) && (State & MODE_CMDLINE) == 0
-            && advance && must_redraw != 0 && !need_wait_return) {
+            && advance && must_redraw != 0) {
           update_screen();
           setcursor();  // put cursor back where it belongs
         }

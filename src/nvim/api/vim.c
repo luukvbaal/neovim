@@ -328,10 +328,7 @@ void nvim_feedkeys(String keys, String mode, Boolean escape_ks)
   }
 
   if (execute) {
-    int save_msg_scroll = msg_scroll;
-
     // Avoid a 1 second delay when the keys start Insert mode.
-    msg_scroll = false;
     if (!dangerous) {
       ex_normal_busy++;
     }
@@ -339,7 +336,6 @@ void nvim_feedkeys(String keys, String mode, Boolean escape_ks)
     if (!dangerous) {
       ex_normal_busy--;
     }
-    msg_scroll |= save_msg_scroll;
   }
 }
 
@@ -1695,9 +1691,6 @@ static void write_msg(String message, bool to_err, bool writeln)
     } else { \
       msg(line_buf->items, 0); \
     } \
-    if (msg_silent == 0) { \
-      msg_didout = true; \
-    } \
     kv_drop(*line_buf, kv_size(*line_buf)); \
     kv_resize(*line_buf, LINE_BUFFER_MIN_SIZE); \
   } else if (c == NUL) { \
@@ -1706,7 +1699,6 @@ static void write_msg(String message, bool to_err, bool writeln)
     kv_push(*line_buf, c); \
   }
 
-  no_wait_return++;
   for (uint32_t i = 0; i < message.size; i++) {
     if (got_int) {
       break;
@@ -1716,7 +1708,6 @@ static void write_msg(String message, bool to_err, bool writeln)
   if (writeln) {
     PUSH_CHAR(NL);
   }
-  no_wait_return--;
   msg_end();
 }
 

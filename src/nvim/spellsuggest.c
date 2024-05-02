@@ -452,7 +452,6 @@ void spell_suggest(int count)
   int limit;
   int selected = count;
   int badlen = 0;
-  int msg_scroll_save = msg_scroll;
   const int wo_spell_save = curwin->w_p_spell;
 
   if (!curwin->w_p_spell) {
@@ -540,8 +539,6 @@ void spell_suggest(int count)
 
     // List the suggestions.
     msg_start();
-    msg_row = Rows - 1;         // for when 'cmdheight' > 1
-    lines_left = Rows;          // avoid more prompt
     char *fmt = _("Change \"%.*s\" to:");
     if (cmdmsg_rl && strncmp(fmt, "Change", 6) == 0) {
       // And now the rabbit from the high hat: Avoid showing the
@@ -550,10 +547,8 @@ void spell_suggest(int count)
     }
     vim_snprintf(IObuff, IOSIZE, fmt, sug.su_badlen, sug.su_badptr);
     msg_puts(IObuff);
-    msg_clr_eos();
     msg_putchar('\n');
 
-    msg_scroll = true;
     for (int i = 0; i < sug.su_ga.ga_len; i++) {
       stp = &SUG(sug.su_ga, i);
 
@@ -602,20 +597,12 @@ void spell_suggest(int count)
     }
 
     cmdmsg_rl = false;
-    msg_col = 0;
     // Ask for choice.
     selected = prompt_for_number(&mouse_used);
 
     if (ui_has(kUIMessages)) {
       ui_call_msg_clear();
     }
-
-    if (mouse_used) {
-      selected -= lines_left;
-    }
-    lines_left = Rows;                  // avoid more prompt
-    // don't delay for 'smd' in normal_cmd()
-    msg_scroll = msg_scroll_save;
   }
 
   if (selected > 0 && selected <= sug.su_ga.ga_len && u_save_cursor() == OK) {

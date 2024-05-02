@@ -1508,12 +1508,7 @@ win_T *win_split_ins(int size, int flags, win_T *new_wp, int dir, frame_T *to_fl
   status_redraw_all();
 
   if (need_status) {
-    msg_row = Rows - 1;
-    msg_col = sc_col;
-    msg_clr_eos_force();        // Old command/ruler may still be there
     comp_col();
-    msg_row = Rows - 1;
-    msg_col = 0;        // put position back at start of line
   }
 
   // equalize the window sizes.
@@ -4433,11 +4428,6 @@ static void enter_tabpage(tabpage_T *tp, buf_T *old_curbuf, bool trigger_enter_a
   // Use the stored value of p_ch, so that it can be different for each tab page.
   if (p_ch != curtab->tp_ch_used) {
     clear_cmdline = true;
-    if (msg_grid.chars && p_ch < curtab->tp_ch_used) {
-      // TODO(bfredl): a bit expensive, should be enough to invalidate the
-      // region between the old and the new p_ch.
-      grid_invalidate(&msg_grid);
-    }
   }
   p_ch = curtab->tp_ch_used;
 
@@ -4697,10 +4687,10 @@ void win_goto(win_T *wp)
   win_enter(wp, true);
 
   // Conceal cursor line in previous window, unconceal in current window.
-  if (win_valid(owp) && owp->w_p_cole > 0 && !msg_scrolled) {
+  if (win_valid(owp) && owp->w_p_cole > 0) {
     redrawWinline(owp, owp->w_cursor.lnum);
   }
-  if (curwin->w_p_cole > 0 && !msg_scrolled) {
+  if (curwin->w_p_cole > 0) {
     redrawWinline(curwin, curwin->w_cursor.lnum);
   }
 }
@@ -5871,17 +5861,12 @@ void win_setheight_win(int height, win_T *win)
 
     // If there is extra space created between the last window and the command
     // line, clear it.
-    if (full_screen && msg_scrolled == 0 && row < cmdline_row) {
+    if (full_screen && row < cmdline_row) {
       grid_clear(&default_grid, row, cmdline_row, 0, Columns, 0);
-      if (msg_grid.chars) {
-        clear_cmdline = true;
-      }
     }
     cmdline_row = row;
     p_ch = MAX(Rows - cmdline_row, 0);
     curtab->tp_ch_used = p_ch;
-    msg_row = row;
-    msg_col = 0;
 
     win_fix_scroll(true);
 
@@ -6346,9 +6331,6 @@ void win_drag_status_line(win_T *dragwin, int offset)
   }
   int row = win_comp_pos();
   grid_clear(&default_grid, row, cmdline_row, 0, Columns, 0);
-  if (msg_grid.chars) {
-    clear_cmdline = true;
-  }
   cmdline_row = row;
   p_ch = MAX(Rows - cmdline_row, p_ch_was_zero ? 0 : 1);
   curtab->tp_ch_used = p_ch;
@@ -6849,12 +6831,7 @@ void command_height(void)
       if (full_screen) {
         grid_clear(&default_grid, cmdline_row, Rows, 0, Columns, 0);
       }
-      msg_row = cmdline_row;
       return;
-    }
-
-    if (msg_row < cmdline_row) {
-      msg_row = cmdline_row;
     }
   }
   frame_add_height(frp, (int)(old_p_ch - p_ch));

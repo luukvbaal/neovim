@@ -1978,8 +1978,7 @@ static int source_using_linegetter(void *cookie, LineGetter fgetline, const char
   current_sctx.sc_lnum = save_sourcing_lnum;
   funccal_entry_T entry;
   save_funccal(&entry);
-  int retval = do_cmdline(NULL, fgetline, cookie,
-                          DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT);
+  int retval = do_cmdline(NULL, fgetline, cookie, DOCMD_VERBOSE | DOCMD_REPEAT);
   estack_pop();
   current_sctx = save_current_sctx;
   restore_funccal();
@@ -2239,7 +2238,7 @@ int do_source(char *fname, int check_other, int is_vimrc, int *ret_sid)
     }
     // Call do_cmdline, which will call getsourceline() to get the lines.
     do_cmdline((char *)firstline, getsourceline, (void *)&cookie,
-               DOCMD_VERBOSE|DOCMD_NOWAIT|DOCMD_REPEAT);
+               DOCMD_VERBOSE|DOCMD_REPEAT);
   }
   retval = OK;
 

@@ -1556,7 +1556,6 @@ static void f_eval(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
     if (expr_start != NULL && !aborting()) {
       semsg(_(e_invexpr2), expr_start);
     }
-    need_clr_eos = false;
     rettv->v_type = VAR_NUMBER;
     rettv->vval.v_number = 0;
   } else if (*s != NUL) {
@@ -1607,8 +1606,6 @@ void execute_common(typval_T *argvars, typval_T *rettv, int arg_off)
   const bool save_emsg_noredir = emsg_noredir;
   const bool save_redir_off = redir_off;
   garray_T *const save_capture_ga = capture_ga;
-  const int save_msg_col = msg_col;
-  bool echo_output = false;
 
   if (check_secure()) {
     return;
@@ -1620,9 +1617,6 @@ void execute_common(typval_T *argvars, typval_T *rettv, int arg_off)
 
     if (s == NULL) {
       return;
-    }
-    if (*s == NUL) {
-      echo_output = true;
     }
     if (strncmp(s, "silent", 6) == 0) {
       msg_silent++;
@@ -1639,9 +1633,6 @@ void execute_common(typval_T *argvars, typval_T *rettv, int arg_off)
   ga_init(&capture_local, (int)sizeof(char), 80);
   capture_ga = &capture_local;
   redir_off = false;
-  if (!echo_output) {
-    msg_col = 0;  // prevent leading spaces
-  }
 
   if (argvars[arg_off].v_type != VAR_LIST) {
     do_cmdline_cmd(tv_get_string(&argvars[arg_off]));
@@ -1652,24 +1643,13 @@ void execute_common(typval_T *argvars, typval_T *rettv, int arg_off)
       .l = list,
       .li = tv_list_first(list),
     };
-    do_cmdline(NULL, get_list_line, (void *)&cookie,
-               DOCMD_NOWAIT|DOCMD_VERBOSE|DOCMD_REPEAT|DOCMD_KEYTYPED);
+    do_cmdline(NULL, get_list_line, (void *)&cookie, DOCMD_VERBOSE|DOCMD_REPEAT|DOCMD_KEYTYPED);
     tv_list_unref(list);
   }
   msg_silent = save_msg_silent;
   emsg_silent = save_emsg_silent;
   emsg_noredir = save_emsg_noredir;
   redir_off = save_redir_off;
-  // "silent reg" or "silent echo x" leaves msg_col somewhere in the line.
-  if (echo_output) {
-    // When not working silently: put it in column zero.  A following
-    // "echon" will overwrite the message, unavoidably.
-    msg_col = 0;
-  } else {
-    // When working silently: Put it back where it was, since nothing
-    // should have been written.
-    msg_col = save_msg_col;
-  }
 
   ga_append(capture_ga, NUL);
   rettv->v_type = VAR_STRING;
@@ -3970,10 +3950,6 @@ static void f_inputlist(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   }
 
   msg_start();
-  msg_row = Rows - 1;   // for when 'cmdheight' > 1
-  lines_left = Rows;    // avoid more prompt
-  msg_scroll = true;
-  msg_clr_eos();
 
   TV_LIST_ITER_CONST(argvars[0].vval.v_list, li, {
     msg_puts(tv_get_string(TV_LIST_ITEM_TV(li)));
@@ -3983,9 +3959,6 @@ static void f_inputlist(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   // Ask for choice.
   bool mouse_used;
   int selected = prompt_for_number(&mouse_used);
-  if (mouse_used) {
-    selected -= lines_left;
-  }
 
   rettv->vval.v_number = selected;
 }
@@ -5484,9 +5457,6 @@ static void f_state(typval_T *argvars, typval_T *rettv, EvalFuncData fptr)
   }
   for (int i = 0; i < get_callback_depth() && i < 3; i++) {
     may_add_state_char(&ga, include, 'c');
-  }
-  if (msg_scrolled > 0) {
-    may_add_state_char(&ga, include, 's');
   }
 
   rettv->v_type = VAR_STRING;

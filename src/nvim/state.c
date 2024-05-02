@@ -67,8 +67,7 @@ getkey:
       key = K_EVENT;
     } else {
       // Duplicate display updating logic in vgetorpeek()
-      if (((State & MODE_INSERT) != 0 || p_lz) && (State & MODE_CMDLINE) == 0
-          && must_redraw != 0 && !need_wait_return) {
+      if (((State & MODE_INSERT) != 0 || p_lz) && (State & MODE_CMDLINE) == 0 && must_redraw != 0) {
         update_screen();
         setcursor();  // put cursor back where it belongs
       }

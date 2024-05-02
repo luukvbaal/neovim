@@ -636,7 +636,6 @@ String nvim_cmd(uint64_t channel_id, Dict(cmd) *cmd, Dict(cmd_opts) *opts, Arena
   garray_T capture_local;
   const int save_msg_silent = msg_silent;
   garray_T * const save_capture_ga = capture_ga;
-  const int save_msg_col = msg_col;
 
   if (opts->output) {
     ga_init(&capture_local, 1, 80);
@@ -646,7 +645,6 @@ String nvim_cmd(uint64_t channel_id, Dict(cmd) *cmd, Dict(cmd_opts) *opts, Arena
   TRY_WRAP(err, {
     if (opts->output) {
       msg_silent++;
-      msg_col = 0;  // prevent leading spaces
     }
 
     WITH_SCRIPT_CONTEXT(channel_id, {
@@ -656,8 +654,6 @@ String nvim_cmd(uint64_t channel_id, Dict(cmd) *cmd, Dict(cmd_opts) *opts, Arena
     if (opts->output) {
       capture_ga = save_capture_ga;
       msg_silent = save_msg_silent;
-      // Put msg_col back where it was, since nothing should have been written.
-      msg_col = save_msg_col;
     }
   });
 

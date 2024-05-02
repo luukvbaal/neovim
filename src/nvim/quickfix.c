@@ -2915,13 +2915,10 @@ static void qf_jump_print_msg(qf_info_T *qi, int qf_index, qfline_T *qf_ptr, buf
 {
   garray_T *const gap = qfga_get();
 
-  // Update the screen before showing the message, unless the screen
-  // scrolled up.
-  if (!msg_scrolled) {
-    update_topline(curwin);
-    if (must_redraw) {
-      update_screen();
-    }
+  // Update the screen before showing the message.
+  update_topline(curwin);
+  if (must_redraw) {
+    update_screen();
   }
   vim_snprintf(IObuff, IOSIZE, _("(%d of %d)%s%s: "), qf_index,
                qf_get_curlist(qi)->qf_count,
@@ -2935,15 +2932,8 @@ static void qf_jump_print_msg(qf_info_T *qi, int qf_index, qfline_T *qf_ptr, buf
   // Output the message.  Overwrite to avoid scrolling when the 'O'
   // flag is present in 'shortmess'; But when not jumping, print the
   // whole message.
-  linenr_T i = msg_scroll;
-  if (curbuf == old_curbuf && curwin->w_cursor.lnum == old_lnum) {
-    msg_scroll = true;
-  } else if (!msg_scrolled && shortmess(SHM_OVERALL)) {
-    msg_scroll = false;
-  }
   msg_ext_set_kind("quickfix");
   msg_attr_keep(gap->ga_data, 0, true, false);
-  msg_scroll = (int)i;
 
   qfga_clear();
 }
@@ -3375,7 +3365,6 @@ static void qf_msg(qf_info_T *qi, int which, char *lead)
     }
     xstrlcat(buf, title, IOSIZE);
   }
-  trunc_string(buf, buf, Columns - 1, IOSIZE);
   msg(buf, 0);
 }
 
@@ -4401,12 +4390,7 @@ static char *make_get_fullcmd(const char *makecmd, const char *fname)
     append_redir(cmd, len, p_sp, fname);
   }
 
-  // Display the fully formed command.  Output a newline if there's something
-  // else than the :make command that was typed (in which case the cursor is
-  // in column 0).
-  if (msg_col == 0) {
-    msg_didout = false;
-  }
+  // Display the fully formed command.
   msg_start();
   msg_puts(":!");
   msg_outtrans(cmd, 0);  // show what we are doing
@@ -5258,17 +5242,7 @@ static void vgr_init_regmatch(regmmatch_T *regmatch, char *s)
 static void vgr_display_fname(char *fname)
 {
   msg_start();
-  char *p = msg_strtrunc(fname, true);
-  if (p == NULL) {
-    msg_outtrans(fname, 0);
-  } else {
-    msg_outtrans(p, 0);
-    xfree(p);
-  }
-  msg_clr_eos();
-  msg_didout = false;  // overwrite this message
-  msg_nowait = true;   // don't wait for this message
-  msg_col = 0;
+  msg_outtrans(fname, 0);
   ui_flush();
 }
 

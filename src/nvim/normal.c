@@ -646,16 +646,10 @@ static bool normal_need_redraw_mode_message(NormalState *s)
                                       && s->old_pos.col == curwin->w_cursor.col))
             // command-line must be cleared or redrawn
             && (clear_cmdline || redraw_cmdline)
-            // some message was printed or scrolled
-            && (msg_didout || (msg_didany && msg_scroll))
             // it is fine to remove the current message
             && !msg_nowait
             // the command was the result of direct user input and not a mapping
-            && KeyTyped)
-           // must restart insert mode, not in visual mode and error message is
-           // being shown
-           || (restart_edit != 0 && !VIsual_active && msg_scroll
-               && emsg_on_display))
+            && KeyTyped))
           // no register was used
           && s->oa.regname == 0
           && !(s->ca.retval & CA_COMMAND_BUSY)
@@ -663,7 +657,6 @@ static bool normal_need_redraw_mode_message(NormalState *s)
           && typebuf_typed()
           && emsg_silent == 0
           && !in_assert_fails
-          && !did_wait_return
           && s->oa.op_type == OP_NOP);
 }
 
@@ -697,13 +690,8 @@ static void normal_redraw_mode_message(NormalState *s)
   setcursor();
   ui_cursor_shape();                  // show different cursor shape
   ui_flush();
-  if (msg_scroll || emsg_on_display) {
-    os_delay(1003, true);            // wait at least one second
-  }
-  os_delay(3003, false);             // wait up to three seconds
   State = save_State;
 
-  msg_scroll = false;
   emsg_on_display = false;
 }
 
@@ -1202,11 +1190,6 @@ static int normal_execute(VimState *state, int key)
     goto finish;
   }
 
-  if (s->ca.cmdchar != K_IGNORE) {
-    msg_didout = false;        // don't scroll screen up for normal command
-    msg_col = 0;
-  }
-
   s->old_pos = curwin->w_cursor;           // remember where the cursor was
 
   // When 'keymodel' contains "startsel" some keys start Select/Visual
@@ -1242,11 +1225,6 @@ static void normal_check_stuff_buffer(NormalState *s)
     if (need_check_timestamps) {
       check_timestamps(false);
     }
-
-    if (need_wait_return) {
-      // if wait_return still needed call it now
-      wait_return(false);
-    }
   }
 }
 
@@ -1265,10 +1243,6 @@ static void normal_check_interrupt(NormalState *s)
       exmode_active = true;
       State = MODE_NORMAL;
     } else if (!global_busy || !exmode_active) {
-      if (!quit_more) {
-        // flush all buffers
-        vgetc();
-      }
       got_int = false;
     }
     s->previous_got_int = true;
@@ -1368,7 +1342,7 @@ static void normal_redraw(NormalState *s)
 
   // Display message after redraw. If an external message is still visible,
   // it contains the kept message already.
-  if (keep_msg != NULL && !msg_ext_is_visible()) {
+  if (keep_msg != NULL) {
     char *const p = xstrdup(keep_msg);
 
     // msg_start() will set keep_msg to NULL, make a copy
@@ -1389,8 +1363,6 @@ static void normal_redraw(NormalState *s)
 
   emsg_on_display = false;  // can delete error message now
   did_emsg = false;
-  msg_didany = false;  // reset lines_left in msg_start()
-  may_clear_sb_text();  // clear scroll-back text on next msg
 
   setcursor();
 }
@@ -1412,11 +1384,6 @@ static int normal_check(VimState *state)
   if (did_throw && !ex_normal_busy) {
     discard_current_exception();
   }
-
-  if (!exmode_active) {
-    msg_scroll = false;
-  }
-  quit_more = false;
 
   state_no_longer_safe(NULL);
 
@@ -2054,20 +2021,14 @@ static void display_showcmd(void)
       win_redr_status(curwin);
       setcursor();  // put cursor back where it belongs
     }
-    return;
-  }
-  if (*p_sloc == 't') {
+  } else if (*p_sloc == 't') {
     if (showcmd_is_clear) {
       redraw_tabline = true;
     } else {
       draw_tabline();
       setcursor();  // put cursor back where it belongs
     }
-    return;
-  }
-  // 'showcmdloc' is "last" or empty
-
-  if (ui_has(kUIMessages)) {
+  } else { // 'showcmdloc' is "last" or empty
     MAXSIZE_TEMP_ARRAY(content, 1);
     MAXSIZE_TEMP_ARRAY(chunk, 2);
     if (!showcmd_is_clear) {
@@ -2077,25 +2038,7 @@ static void display_showcmd(void)
       ADD_C(content, ARRAY_OBJ(chunk));
     }
     ui_call_msg_showcmd(content);
-    return;
   }
-  if (p_ch == 0) {
-    return;
-  }
-
-  msg_grid_validate();
-  int showcmd_row = Rows - 1;
-  grid_line_start(&msg_grid_adj, showcmd_row);
-
-  int len = 0;
-  if (!showcmd_is_clear) {
-    len = grid_line_puts(sc_col, showcmd_buf, -1, HL_ATTR(HLF_MSG));
-  }
-
-  // clear the rest of an old message by outputting up to SHOWCMD_COLS spaces
-  grid_line_puts(sc_col + len, (char *)"          " + len, -1, HL_ATTR(HLF_MSG));
-
-  grid_line_flush();
 }
 
 /// When "check" is false, prepare for commands that scroll the window.
@@ -5579,7 +5522,6 @@ static void nv_g_cmd(cmdarg_T *cap)
     break;
   // "g<": show scrollback text
   case '<':
-    show_sb_text();
     break;
 
   // "gg": Goto the first line in file.  With a count it goes to

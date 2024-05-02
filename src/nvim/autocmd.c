@@ -1,4 +1,4 @@
-// autocmd.c: Autocommand related functions
+// autocmd.c: Autocommand rlated functions
 
 #include <assert.h>
 #include <stddef.h>
@@ -37,6 +37,7 @@
 #include "nvim/lua/executor.h"
 #include "nvim/main.h"
 #include "nvim/map_defs.h"
+#include "nvim/mbyte.h"
 #include "nvim/memory.h"
 #include "nvim/message.h"
 #include "nvim/option.h"
@@ -202,6 +203,7 @@ static void au_show_for_event(int group, event_T event, const char *pat)
         continue;
       }
 
+      size_t col = 0;
       // Show event name and group only if one of them changed.
       if (ac->pat->group != last_group) {
         last_group = ac->pat->group;
@@ -221,8 +223,10 @@ static void au_show_for_event(int group, event_T event, const char *pat)
         if (ac->pat->group != AUGROUP_DEFAULT) {
           if (last_group_name == NULL) {
             msg_puts_attr(get_deleted_augroup(), HL_ATTR(HLF_E));
+            col += mb_string2cells(get_deleted_augroup()) + 2;
           } else {
             msg_puts_attr(last_group_name, HL_ATTR(HLF_T));
+            col += mb_string2cells(last_group_name) + 2;
           }
           msg_puts("  ");
         }
@@ -239,18 +243,16 @@ static void au_show_for_event(int group, event_T event, const char *pat)
           return;
         }
 
-        msg_col = 4;
-        msg_outtrans(ac->pat->pat, 0);
+        col = 4 + msg_outtrans(ac->pat->pat, 0);
       }
 
       if (got_int) {
         return;
       }
 
-      if (msg_col >= 14) {
+      if (col >= 14) {
         msg_putchar('\n');
       }
-      msg_col = 14;
       if (got_int) {
         return;
       }
@@ -565,7 +567,6 @@ void do_augroup(char *arg, bool del_group)
       msg_puts("  ");
     });
 
-    msg_clr_eos();
     msg_end();
   }
 }
@@ -1839,7 +1840,7 @@ bool apply_autocmds_group(event_T event, char *fname, char *fname_io, bool force
     const bool save_ex_pressedreturn = get_pressedreturn();
 
     // Execute the autocmd. The `getnextac` callback handles iteration.
-    do_cmdline(NULL, getnextac, &patcmd, DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT);
+    do_cmdline(NULL, getnextac, &patcmd, DOCMD_VERBOSE | DOCMD_REPEAT);
 
     did_emsg += save_did_emsg;
     set_pressedreturn(save_ex_pressedreturn);
@@ -2088,12 +2089,11 @@ char *getnextac(int c, void *cookie, int indent, bool do_concat)
   bool oneshot = ac->once;
 
   if (p_verbose >= 9) {
-    verbose_enter_scroll();
+    verbose_enter();
     char *exec_to_string = aucmd_exec_to_string(ac, ac->exec);
     smsg(0, _("autocommand %s"), exec_to_string);
     msg_puts("\n");  // don't overwrite this either
     XFREE_CLEAR(exec_to_string);
-    verbose_leave_scroll();
   }
 
   // Make sure to set autocmd_nested before executing

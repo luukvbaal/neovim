@@ -2570,10 +2570,7 @@ static void version_msg_wrap(char *s, bool wrap)
 {
   int len = vim_strsize(s) + (wrap ? 2 : 0);
 
-  if (!got_int
-      && (len < Columns)
-      && (msg_col + len >= Columns)
-      && (*s != '\n')) {
+  if (!got_int && (len < Columns) && (*s != '\n')) {
     msg_putchar('\n');
   }
 
@@ -2616,9 +2613,7 @@ void list_in_columns(char **items, int size, int current)
     // Not enough screen columns - show one per line
     for (int i = 0; i < item_count; i++) {
       version_msg_wrap(items[i], i == current);
-      if (msg_col > 0 && i < item_count - 1) {
-        msg_putchar('\n');
-      }
+      msg_putchar('\n');
     }
     return;
   }
@@ -2642,23 +2637,17 @@ void list_in_columns(char **items, int size, int current)
         msg_putchar(']');
       }
       if (last_col) {
-        if (msg_col > 0 && cur_row < nrow) {
-          msg_putchar('\n');
-        }
+        msg_putchar('\n');
         cur_row++;
       } else {
-        while (msg_col % width) {
-          msg_putchar(' ');
-        }
+        msg_putchar(' ');
       }
     } else {
       // this row is out of items, thus at the end of the row
-      if (msg_col > 0) {
-        if (cur_row < nrow) {
-          msg_putchar('\n');
-        }
-        cur_row++;
+      if (cur_row < nrow) {
+        msg_putchar('\n');
       }
+      cur_row++;
     }
   }
 }
@@ -2838,8 +2827,6 @@ static void do_intro_line(int row, char *mesg, bool colon)
 /// @param eap
 void ex_intro(exarg_T *eap)
 {
-  // TODO(bfredl): use msg_grid instead!
   screenclear();
   intro_message(true);
-  wait_return(true);
 }

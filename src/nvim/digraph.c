@@ -1704,9 +1704,6 @@ void putdigraph(char *str)
 static void digraph_header(const char *msg)
   FUNC_ATTR_NONNULL_ALL
 {
-  if (msg_col > 0) {
-    msg_putchar('\n');
-  }
   msg_outtrans(msg, HL_ATTR(HLF_CM));
   msg_putchar('\n');
 }
@@ -1827,7 +1824,6 @@ static void printdigraph(const digr_T *dp, result_T *previous)
   FUNC_ATTR_NONNULL_ARG(1)
 {
   char buf[30];
-  int list_width = 13;
 
   if (dp->result == 0) {
     return;
@@ -1843,17 +1839,6 @@ static void printdigraph(const digr_T *dp, result_T *previous)
       }
     }
     *previous = dp->result;
-  }
-  if (msg_col > Columns - list_width) {
-    msg_putchar('\n');
-  }
-
-  // Make msg_col a multiple of list_width by using spaces.
-  if (msg_col % list_width != 0) {
-    int spaces = (msg_col / list_width + 1) * list_width - msg_col;
-    while (spaces--) {
-      msg_putchar(' ');
-    }
   }
 
   char *p = &buf[0];

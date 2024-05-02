@@ -1435,7 +1435,6 @@ static void list_one_var_a(const char *prefix, const char *name, const ptrdiff_t
     msg_puts("()");
   }
   if (*first) {
-    msg_clr_eos();
     *first = false;
   }
 }

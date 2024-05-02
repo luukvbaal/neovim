@@ -742,14 +742,12 @@ void do_tag(char *tag, int type, int count, int forceit, bool verbose)
         if (ic) {
           xstrlcat(IObuff, _("  Using tag with different case!"), IOSIZE);
         }
-        if ((num_matches > prev_num_matches || new_tag)
-            && num_matches > 1) {
+        if ((num_matches > prev_num_matches || new_tag) && num_matches > 1) {
           msg(IObuff, ic ? HL_ATTR(HLF_W) : 0);
-          msg_scroll = true;  // Don't overwrite this message.
         } else {
           give_warning(IObuff, ic);
         }
-        if (ic && !msg_scrolled && msg_silent == 0) {
+        if (ic && msg_silent == 0) {
           ui_flush();
           os_delay(1007, true);
         }
@@ -822,12 +820,8 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
   if (taglen > Columns - 25) {
     taglen = MAXCOL;
   }
-  if (msg_col == 0) {
-    msg_didout = false;     // overwrite previous message
-  }
   msg_start();
   msg_puts_attr(_("  # pri kind tag"), HL_ATTR(HLF_T));
-  msg_clr_eos();
   taglen_advance(taglen);
   msg_puts_attr(_("file\n"), HL_ATTR(HLF_T));
 
@@ -861,9 +855,6 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
       msg_outtrans(p, HL_ATTR(HLF_D));
       XFREE_CLEAR(p);
     }
-    if (msg_col > 0) {
-      msg_putchar('\n');
-    }
     if (got_int) {
       break;
     }
@@ -893,13 +884,11 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
         // print all other extra fields
         int attr = HL_ATTR(HLF_CM);
         while (*p && *p != '\r' && *p != '\n') {
-          if (msg_col + ptr2cells(p) >= Columns) {
-            msg_putchar('\n');
-            if (got_int) {
-              break;
-            }
-            msg_advance(15);
+          msg_putchar('\n');
+          if (got_int) {
+            break;
           }
+          msg_advance(15);
           p = msg_outtrans_one(p, attr);
           if (*p == TAB) {
             msg_puts_attr(" ", attr);
@@ -910,13 +899,11 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
           }
         }
       }
-      if (msg_col > 15) {
-        msg_putchar('\n');
-        if (got_int) {
-          break;
-        }
-        msg_advance(15);
+      msg_putchar('\n');
+      if (got_int) {
+        break;
       }
+      msg_advance(15);
     } else {
       for (p = tagp.command;
            *p && *p != '\r' && *p != '\n';
@@ -939,9 +926,7 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
     }
 
     while (p != command_end) {
-      if (msg_col + (*p == TAB ? 1 : ptr2cells(p)) > Columns) {
-        msg_putchar('\n');
-      }
+      msg_putchar('\n');
       if (got_int) {
         break;
       }
@@ -972,9 +957,7 @@ static void print_tag_list(bool new_tag, bool use_tagstack, int num_matches, cha
         break;
       }
     }
-    if (msg_col) {
-      msg_putchar('\n');
-    }
+    msg_putchar('\n');
     os_breakcheck();
   }
   if (got_int) {
@@ -2993,7 +2976,7 @@ static int jumpto_tag(const char *lbuf_arg, int forceit, bool keep_help)
           // is set and match found while ignoring case.
           if (found == 2 || !save_p_ic) {
             msg(_("E435: Couldn't find tag, just guessing!"), 0);
-            if (!msg_scrolled && msg_silent == 0) {
+            if (msg_silent == 0) {
               ui_flush();
               os_delay(1010, true);
             }
@@ -3018,11 +3001,6 @@ static int jumpto_tag(const char *lbuf_arg, int forceit, bool keep_help)
       do_cmdline_cmd(pbuf);
       retval = OK;
 
-      // When the command has done something that is not allowed make sure
-      // the error message can be seen.
-      if (secure == 2) {
-        wait_return(true);
-      }
       secure = save_secure;
       sandbox--;
     }

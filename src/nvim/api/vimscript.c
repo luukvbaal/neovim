@@ -71,7 +71,6 @@ String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *
 {
   const int save_msg_silent = msg_silent;
   garray_T *const save_capture_ga = capture_ga;
-  const int save_msg_col = msg_col;
   garray_T capture_local;
   if (opts->output) {
     ga_init(&capture_local, 1, 80);
@@ -81,7 +80,6 @@ String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *
   try_start();
   if (opts->output) {
     msg_silent++;
-    msg_col = 0;  // prevent leading spaces
   }
 
   const sctx_T save_current_sctx = api_set_sctx(channel_id);
@@ -90,8 +88,6 @@ String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *
   if (opts->output) {
     capture_ga = save_capture_ga;
     msg_silent = save_msg_silent;
-    // Put msg_col back where it was, since nothing should have been written.
-    msg_col = save_msg_col;
   }
 
   current_sctx = save_current_sctx;

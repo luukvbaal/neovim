@@ -1347,7 +1347,6 @@ static void do_one_set_option(int opt_flags, char **argp, bool *did_show, char *
     if (*did_show) {
       msg_putchar('\n');                // cursor below last one
     } else {
-      gotocmdline(true);                // cursor at status line
       *did_show = true;                 // remember that we did a line
     }
     showoneopt(&options[opt_idx], opt_flags);
@@ -1476,9 +1475,7 @@ int do_set(char *arg, int opt_flags)
           // make sure all characters are printable
           trans_characters(IObuff, IOSIZE);
 
-          no_wait_return++;         // wait_return() done later
           emsg(IObuff);             // show error highlighted
-          no_wait_return--;
 
           return FAIL;
         }
@@ -4210,11 +4207,8 @@ static void showoptions(bool all, int opt_flags)
       if (got_int) {                            // 'q' typed in more
         break;
       }
-      int col = 0;
       for (int i = row; i < item_count; i += rows) {
-        msg_col = col;                          // make columns
         showoneopt(items[i], opt_flags);
-        col += INC;
       }
       os_breakcheck();
     }

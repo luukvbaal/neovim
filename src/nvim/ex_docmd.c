@@ -262,9 +262,7 @@ void do_exmode(void)
     return;
   }
 
-  int save_msg_scroll = msg_scroll;
   RedrawingDisabled++;  // don't redisplay the window
-  no_wait_return++;  // don't wait for return
 
   msg(_("Entering Ex mode.  Type \"visual\" to go to Normal mode."), 0);
   while (exmode_active) {
@@ -273,35 +271,18 @@ void do_exmode(void)
       exmode_active = false;
       break;
     }
-    msg_scroll = true;
-    need_wait_return = false;
     ex_pressedreturn = false;
     ex_no_reprint = false;
     varnumber_T changedtick = buf_get_changedtick(curbuf);
-    int prev_msg_row = msg_row;
     linenr_T prev_line = curwin->w_cursor.lnum;
-    cmdline_row = msg_row;
     do_cmdline(NULL, getexline, NULL, 0);
-    lines_left = Rows - 1;
 
     if ((prev_line != curwin->w_cursor.lnum
          || changedtick != buf_get_changedtick(curbuf)) && !ex_no_reprint) {
       if (curbuf->b_ml.ml_flags & ML_EMPTY) {
         emsg(_(e_empty_buffer));
       } else {
-        if (ex_pressedreturn) {
-          // Make sure the message overwrites the right line and isn't throttled.
-          msg_scroll_flush();
-          // go up one line, to overwrite the ":<CR>" line, so the
-          // output doesn't contain empty lines.
-          msg_row = prev_msg_row;
-          if (prev_msg_row == Rows - 1) {
-            msg_row--;
-          }
-        }
-        msg_col = 0;
         print_line_no_prefix(curwin->w_cursor.lnum, false, false);
-        msg_clr_eos();
       }
     } else if (ex_pressedreturn && !ex_no_reprint) {  // must be at EOF
       if (curbuf->b_ml.ml_flags & ML_EMPTY) {
@@ -313,11 +294,8 @@ void do_exmode(void)
   }
 
   RedrawingDisabled--;
-  no_wait_return--;
   redraw_all_later(UPD_NOT_VALID);
   update_screen();
-  need_wait_return = false;
-  msg_scroll = save_msg_scroll;
 }
 
 /// Print the executed command for when 'verbose' is set.
@@ -326,8 +304,7 @@ void do_exmode(void)
 static void msg_verbose_cmd(linenr_T lnum, char *cmd)
   FUNC_ATTR_NONNULL_ALL
 {
-  no_wait_return++;
-  verbose_enter_scroll();
+  verbose_enter();
 
   if (lnum == 0) {
     smsg(0, _("Executing: %s"), cmd);
@@ -338,8 +315,7 @@ static void msg_verbose_cmd(linenr_T lnum, char *cmd)
     msg_puts("\n");   // don't overwrite this
   }
 
-  verbose_leave_scroll();
-  no_wait_return--;
+  verbose_leave();
 }
 
 static int cmdline_call_depth = 0;  ///< recursiveness
@@ -372,7 +348,7 @@ static void do_cmdline_end(void)
 /// Execute a simple command line.  Used for translated commands like "*".
 int do_cmdline_cmd(const char *cmd)
 {
-  return do_cmdline((char *)cmd, NULL, NULL, DOCMD_VERBOSE|DOCMD_NOWAIT|DOCMD_KEYTYPED);
+  return do_cmdline((char *)cmd, NULL, NULL, DOCMD_VERBOSE|DOCMD_KEYTYPED);
 }
 
 /// do_cmdline(): execute one Ex command line
@@ -385,7 +361,6 @@ int do_cmdline_cmd(const char *cmd)
 ///
 /// flags:
 ///   DOCMD_VERBOSE  - The command will be included in the error message.
-///   DOCMD_NOWAIT   - Don't call wait_return() and friends.
 ///   DOCMD_REPEAT   - Repeat execution until fgetline() returns NULL.
 ///   DOCMD_KEYTYPED - Don't reset KeyTyped.
 ///   DOCMD_EXCRESET - Reset the exception environment (used for debugging).
@@ -400,7 +375,6 @@ int do_cmdline(char *cmdline, LineGetter fgetline, void *cookie, int flags)
   char *cmdline_copy = NULL;            // copy of cmd line
   bool used_getline = false;            // used "fgetline" to obtain command
   static int recursive = 0;             // recursive depth
-  bool msg_didout_before_start = false;
   int count = 0;                        // line number count
   bool did_inc = false;                 // incremented RedrawingDisabled
   int retval = OK;
@@ -570,22 +544,11 @@ int do_cmdline(char *cmdline, LineGetter fgetline, void *cookie, int flags)
 
     // 2. If no line given, get an allocated line with fgetline().
     if (next_cmdline == NULL) {
-      // Need to set msg_didout for the first line after an ":if",
-      // otherwise the ":if" will be overwritten.
-      if (count == 1 && getline_equal(fgetline, cookie, getexline)) {
-        msg_didout = true;
-      }
       if (fgetline == NULL
           || (next_cmdline = fgetline(':', cookie,
                                       cstack.cs_idx <
                                       0 ? 0 : (cstack.cs_idx + 1) * 2,
                                       true)) == NULL) {
-        // Don't call wait_return() for aborted command line.  The NULL
-        // returned for the end of a sourced file or executed function
-        // doesn't do this.
-        if (KeyTyped && !(flags & DOCMD_REPEAT)) {
-          need_wait_return = false;
-        }
         retval = FAIL;
         break;
       }
@@ -644,12 +607,8 @@ int do_cmdline(char *cmdline, LineGetter fgetline, void *cookie, int flags)
       // waiting for a return. Don't do this when executing commands
       // from a script or when being called recursive (e.g. for ":e
       // +command file").
-      if (!(flags & DOCMD_NOWAIT) && !recursive) {
-        msg_didout_before_start = msg_didout;
-        msg_didany = false;         // no output yet
+      if (!recursive) {
         msg_start();
-        msg_scroll = true;          // put messages below each other
-        no_wait_return++;           // don't wait for return until finished
         RedrawingDisabled++;
         did_inc = true;
       }
@@ -918,22 +877,6 @@ int do_cmdline(char *cmdline, LineGetter fgetline, void *cookie, int flags)
   // this only once after the command is finished.
   if (did_inc) {
     RedrawingDisabled--;
-    no_wait_return--;
-    msg_scroll = false;
-
-    // When just finished an ":if"-":else" which was typed, no need to
-    // wait for hit-return.  Also for an error situation.
-    if (retval == FAIL
-        || (did_endif && KeyTyped && !did_emsg)) {
-      need_wait_return = false;
-      msg_didany = false;               // don't wait when restarting edit
-    } else if (need_wait_return) {
-      // The msg_start() above clears msg_didout. The wait_return() we do
-      // here should not overwrite the command that may be shown before
-      // doing that.
-      msg_didout |= msg_didout_before_start;
-      wait_return(false);
-    }
   }
 
   did_endif = false;    // in case do_cmdline used recursively
@@ -2708,7 +2651,6 @@ void apply_cmdmod(cmdmod_T *cmod)
   if ((cmod->cmod_flags & (CMOD_SILENT | CMOD_UNSILENT))
       && cmod->cmod_save_msg_silent == 0) {
     cmod->cmod_save_msg_silent = msg_silent + 1;
-    cmod->cmod_save_msg_scroll = msg_scroll;
   }
   if (cmod->cmod_flags & CMOD_SILENT) {
     msg_silent++;
@@ -2763,15 +2705,6 @@ void undo_cmdmod(cmdmod_T *cmod)
     emsg_silent -= cmod->cmod_did_esilent;
     if (emsg_silent < 0) {
       emsg_silent = 0;
-    }
-    // Restore msg_scroll, it's set by file I/O commands, even when no
-    // message is actually displayed.
-    msg_scroll = cmod->cmod_save_msg_scroll;
-
-    // "silent reg" or "silent echo x" inside "redir" leaves msg_col
-    // somewhere in the line.  Put it back in the first column.
-    if (redirecting()) {
-      msg_col = 0;
     }
 
     cmod->cmod_save_msg_silent = 0;
@@ -5285,7 +5218,6 @@ static void ex_tabs(exarg_T *eap)
   int tabcount = 1;
 
   msg_start();
-  msg_scroll = true;
 
   win_T *lastused_win = valid_tabpage(lastused_tabpage)
                         ? lastused_tabpage->tp_curwin
@@ -5433,11 +5365,6 @@ void do_exedit(exarg_T *eap, win_T *old_curwin)
 
         const int save_rd = RedrawingDisabled;
         RedrawingDisabled = 0;
-        const int save_nwr = no_wait_return;
-        no_wait_return = 0;
-        need_wait_return = false;
-        const int save_ms = msg_scroll;
-        msg_scroll = 0;
         redraw_all_later(UPD_NOT_VALID);
         pending_exmode_active = true;
 
@@ -5445,8 +5372,6 @@ void do_exedit(exarg_T *eap, win_T *old_curwin)
 
         pending_exmode_active = false;
         RedrawingDisabled = save_rd;
-        no_wait_return = save_nwr;
-        msg_scroll = save_ms;
       }
       return;
     }
@@ -6134,7 +6059,7 @@ static void ex_at(exarg_T *eap)
   // Continue until the stuff buffer is empty and all added characters
   // have been consumed.
   while (!stuff_empty() || typebuf.tb_len > prev_len) {
-    do_cmdline(NULL, getexline, NULL, DOCMD_NOWAIT|DOCMD_VERBOSE);
+    do_cmdline(NULL, getexline, NULL, DOCMD_VERBOSE);
   }
 
   exec_from_reg = save_efr;
@@ -6349,13 +6274,6 @@ static void ex_redraw(exarg_T *eap)
   RedrawingDisabled = r;
   p_lz = p;
 
-  // Reset msg_didout, so that a message that's there is overwritten.
-  msg_didout = false;
-  msg_col = 0;
-
-  // No need to wait after an intentional redraw.
-  need_wait_return = false;
-
   ui_flush();
 }
 
@@ -6501,16 +6419,13 @@ void update_topline_cursor(void)
 bool save_current_state(save_state_T *sst)
   FUNC_ATTR_NONNULL_ALL
 {
-  sst->save_msg_scroll = msg_scroll;
   sst->save_restart_edit = restart_edit;
-  sst->save_msg_didout = msg_didout;
   sst->save_State = State;
   sst->save_finish_op = finish_op;
   sst->save_opcount = opcount;
   sst->save_reg_executing = reg_executing;
   sst->save_pending_end_reg_executing = pending_end_reg_executing;
 
-  msg_scroll = false;   // no msg scrolling in Normal mode
   restart_edit = 0;     // don't go to Insert mode
 
   // Save the current typeahead.  This is required to allow using ":normal"
@@ -6526,7 +6441,6 @@ void restore_current_state(save_state_T *sst)
   // Restore the previous typeahead.
   restore_typeahead(&sst->tabuf);
 
-  msg_scroll = sst->save_msg_scroll;
   if (force_restart_edit) {
     force_restart_edit = false;
   } else {
@@ -6538,9 +6452,6 @@ void restore_current_state(save_state_T *sst)
   opcount = sst->save_opcount;
   reg_executing = sst->save_reg_executing;
   pending_end_reg_executing = sst->save_pending_end_reg_executing;
-
-  // don't reset msg_didout now
-  msg_didout |= sst->save_msg_didout;
 
   // Restore the state (needed when called from a function executed for
   // 'indentexpr'). Update the mouse and cursor, they may have changed.

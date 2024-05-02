@@ -5485,7 +5485,6 @@ void cursor_pos_info(dict_T *dict)
       p_shm = "";
       if (p_ch < 1) {
         msg_start();
-        msg_scroll = true;
       }
       msg(IObuff, 0);
       p_shm = p;

@@ -1871,7 +1871,6 @@ bool syn_list_header(const bool did_header, const int outlen, const int id, bool
 {
   int endcol = 19;
   bool newline = true;
-  int name_col = 0;
   bool adjust = true;
 
   if (!did_header) {
@@ -1880,36 +1879,23 @@ bool syn_list_header(const bool did_header, const int outlen, const int id, bool
       return true;
     }
     msg_outtrans(hl_table[id - 1].sg_name, 0);
-    name_col = msg_col;
     endcol = 15;
-  } else if ((ui_has(kUIMessages) || msg_silent) && !force_newline) {
+  } else if (!force_newline) {
     msg_putchar(' ');
     adjust = false;
-  } else if (msg_col + outlen + 1 >= Columns || force_newline) {
+  } else {
     msg_putchar('\n');
     if (got_int) {
       return true;
     }
-  } else {
-    if (msg_col >= endcol) {    // wrap around is like starting a new line
-      newline = false;
-    }
   }
 
   if (adjust) {
-    if (msg_col >= endcol) {
-      // output at least one space
-      endcol = msg_col + 1;
-    }
-
     msg_advance(endcol);
   }
 
   // Show "xxx" with the attributes.
   if (!did_header) {
-    if (endcol == Columns - 1 && endcol <= name_col) {
-      msg_putchar(' ');
-    }
     msg_puts_attr("xxx", syn_id2attr(id));
     msg_putchar(' ');
   }
@@ -2261,11 +2247,8 @@ void highlight_changed(void)
     if (highlight_attr[hlf] != highlight_attr_last[hlf]) {
       if (hlf == HLF_MSG) {
         clear_cmdline = true;
-        HlAttrs attrs = syn_attr2entry(highlight_attr[hlf]);
-        msg_grid.blending = attrs.hl_blend > -1;
       }
-      ui_call_hl_group_set(cstr_as_string(hlf_names[hlf]),
-                           highlight_attr[hlf]);
+      ui_call_hl_group_set(cstr_as_string(hlf_names[hlf]), highlight_attr[hlf]);
       highlight_attr_last[hlf] = highlight_attr[hlf];
     }
   }
@@ -2367,7 +2350,6 @@ static void highlight_list(void)
 static void highlight_list_two(int cnt, int attr)
 {
   msg_puts_attr(&("N \bI \b!  \b"[cnt / 11]), attr);
-  msg_clr_eos();
   ui_flush();
   os_delay(cnt == 99 ? 40 : (uint64_t)cnt * 50, false);
 }
