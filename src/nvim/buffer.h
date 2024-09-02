@@ -92,5 +92,5 @@ static inline varnumber_T buf_get_changedtick(const buf_T *const buf)
 
 static inline uint32_t buf_meta_total(const buf_T *b, MetaIndex m)
 {
-  return b->b_marktree->meta_root[m];
+  return b->b_marktree->meta_root[m] - b->b_marktree->meta_invalid[m];
 }

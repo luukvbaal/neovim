@@ -49,6 +49,21 @@
 # include "extmark.c.generated.h"
 #endif
 
+/// Keep track of number of invalid marks to be subtracted from the meta_root.
+/// Call after a mark's invalid flag is changed or an invalid mark is deleted.
+static void mt_meta_invalid(MarkTree *b, MTKey key, bool add)
+{
+  uint32_t meta_inc[kMTMetaCount];
+  meta_describe_key(meta_inc, key);
+  for (int i = 0; i < kMTMetaCount; i++) {
+    if (add) {
+      b->meta_invalid[i] += meta_inc[i];
+    } else {
+      b->meta_invalid[i] -= meta_inc[i];
+    }
+  }
+}
+
 /// Create or update an extmark
 ///
 /// must not be used during iteration!
@@ -87,7 +102,9 @@ void extmark_set(buf_T *buf, uint32_t ns_id, uint32_t *idp, int row, colnr_T col
           goto revised;
         }
         marktree_del_itr(buf->b_marktree, itr, false);
-        if (!invalid) {
+        if (invalid) {
+          mt_meta_invalid(buf->b_marktree, old_mark, false);
+        } else {
           buf_decor_remove(buf, old_mark.pos.row, old_mark.pos.row, old_mark.pos.col,
                            mt_decor(old_mark), true);
         }
@@ -131,6 +148,7 @@ static void extmark_setraw(buf_T *buf, uint64_t mark, int row, colnr_T col, bool
   int row2 = 0;
   if (invalid) {
     mt_itr_rawkey(itr).flags &= (uint16_t) ~MT_FLAG_INVALID;
+    mt_meta_invalid(buf->b_marktree, mt_itr_rawkey(itr), false);
   } else if (move && key.flags & MT_FLAG_DECOR_SIGNTEXT && buf->b_signcols.autom) {
     MTPos end = marktree_get_altpos(buf->b_marktree, key, NULL);
     row1 = MIN(end.row, MIN(key.pos.row, row));
@@ -183,6 +201,7 @@ void extmark_del(buf_T *buf, MarkTreeIter *itr, MTKey key, bool restore)
   if (mt_decor_any(key)) {
     if (mt_invalid(key)) {
       decor_free(mt_decor(key));
+      mt_meta_invalid(buf->b_marktree, key, false);
     } else {
       buf_decor_remove(buf, key.pos.row, key2.pos.row, key.pos.col, mt_decor(key), true);
     }
@@ -394,6 +413,7 @@ void extmark_splice_delete(buf_T *buf, int l_row, colnr_T l_col, int u_row, coln
         } else {
           invalidated = true;
           mt_itr_rawkey(itr).flags |= MT_FLAG_INVALID;
+          mt_meta_invalid(buf->b_marktree, mt_itr_rawkey(itr), true);
           buf_decor_remove(buf, mark.pos.row, endpos.row, mark.pos.col, mt_decor(mark), false);
         }
       }

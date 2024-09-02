@@ -454,7 +454,7 @@ static void meta_describe_key_inc(uint32_t *meta_inc, MTKey *k)
   }
 }
 
-static void meta_describe_key(uint32_t *meta_inc, MTKey k)
+void meta_describe_key(uint32_t *meta_inc, MTKey k)
 {
   memset(meta_inc, 0, kMTMetaCount * sizeof(*meta_inc));
   meta_describe_key_inc(meta_inc, &k);

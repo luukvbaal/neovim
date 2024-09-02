@@ -98,6 +98,7 @@ struct mtnode_s {
 typedef struct {
   MTNode *root;
   uint32_t meta_root[kMTMetaCount];
+  uint32_t meta_invalid[kMTMetaCount];
   size_t n_keys, n_nodes;
   PMap(uint64_t) id2node[1];
 } MarkTree;
