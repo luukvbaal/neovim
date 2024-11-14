@@ -249,35 +249,37 @@ bool msg(const char *s, const int hl_id)
   return msg_hl_keep(s, hl_id, false, false);
 }
 
-/// Similar to msg_outtrans, but support newlines and tabs.
-void msg_multiline(const char *s, int hl_id, bool check_int, bool hist, bool *need_clear)
+/// Similar to msg_outtrans_len, but support newlines and tabs.
+void msg_multiline(const char *str, int hl_id, bool check_int, bool hist, bool *need_clear, int len)
   FUNC_ATTR_NONNULL_ALL
 {
-  const char *next_spec = s;
+  if (len == -1) {
+    len = (int)strlen(str);
+  }
 
-  while (next_spec != NULL) {
+  const char *s = str;
+  const char *chunk = str;
+  while (s - str < len) {
     if (check_int && got_int) {
       return;
     }
-    next_spec = strpbrk(s, "\t\n\r");
+    if (*s == '\n' || *s == TAB || *s == '\r') {
+      // Print all chars before the delimiter
+      msg_outtrans_len(chunk, (int)(s - chunk), hl_id, hist);
 
-    if (next_spec != NULL) {
-      // Printing all char that are before the char found by strpbrk
-      msg_outtrans_len(s, (int)(next_spec - s), hl_id, hist);
-
-      if (*next_spec != TAB && *need_clear) {
+      if (*s != TAB && *need_clear) {
         msg_clr_eos();
         *need_clear = false;
       }
-      msg_putchar_hl((uint8_t)(*next_spec), hl_id);
-      s = next_spec + 1;
+      msg_putchar_hl((uint8_t)(*s), hl_id);
+      chunk = s + 1;
     }
+    s++;
   }
 
-  // Print the rest of the message. We know there is no special
-  // character because strpbrk returned NULL
-  if (*s != NUL) {
-    msg_outtrans(s, hl_id, hist);
+  // Print the rest of the message
+  if (*chunk != NUL) {
+    msg_outtrans_len(chunk, (int)(len - (chunk - str)), hl_id, hist);
   }
 }
 
@@ -290,7 +292,7 @@ void msg_multihl(HlMessage hl_msg, const char *kind, bool history)
   msg_ext_set_kind(kind);
   for (uint32_t i = 0; i < kv_size(hl_msg); i++) {
     HlMessageChunk chunk = kv_A(hl_msg, i);
-    msg_multiline(chunk.text.data, chunk.hl_id, true, false, &need_clear);
+    msg_multiline(chunk.text.data, chunk.hl_id, true, false, &need_clear, (int)chunk.text.size);
   }
   if (history && kv_size(hl_msg)) {
     add_msg_hist_multihl(NULL, 0, 0, true, hl_msg);
@@ -349,7 +351,7 @@ bool msg_hl_keep(const char *s, int hl_id, bool keep, bool multiline)
 
   bool need_clear = true;
   if (multiline) {
-    msg_multiline(s, hl_id, false, false, &need_clear);
+    msg_multiline(s, hl_id, false, false, &need_clear, -1);
   } else {
     msg_outtrans(s, hl_id, false);
   }
@@ -2688,13 +2690,14 @@ static void msg_puts_printf(const char *str, const ptrdiff_t maxlen)
     int cw = utf_char2cells(utf_ptr2char(s));
     // primitive way to compute the current column
     if (*s == '\r' || *s == '\n') {
+      msg_didout = false;
       msg_col = 0;
     } else {
       msg_col += cw;
+      msg_didout = true;
     }
     s += len;
   }
-  msg_didout = true;  // assume that line is not empty
 }
 
 /// Show the more-prompt and handle the user response.

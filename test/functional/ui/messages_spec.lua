@@ -2068,8 +2068,6 @@ aliquip ex ea commodo consequat.]]
   end)
 
   it('can be quit with Lua #11224 #16537', function()
-    -- NOTE: adds "4" to message history, although not displayed initially
-    --       (triggered the more prompt).
     screen:try_resize(40, 5)
     feed(':lua for i=0,10 do print(i) end<cr>')
     screen:expect {
@@ -2099,13 +2097,13 @@ aliquip ex ea commodo consequat.]]
       {4:-- More --}^                              |
     ]],
     }
-    feed('j')
+    feed('G')
     screen:expect {
       grid = [[
-      1                                       |
-      2                                       |
-      3                                       |
-      4                                       |
+      7                                       |
+      8                                       |
+      9                                       |
+      10                                      |
       {4:Press ENTER or type command to continue}^ |
     ]],
     }
