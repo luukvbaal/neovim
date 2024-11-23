@@ -1019,6 +1019,7 @@ static int get_rightmost_vcol(win_T *wp, const int *color_cols)
 /// @param endrow       last grid row to be redrawn
 /// @param col_rows     set to the height of the line when only updating the columns,
 ///                     otherwise set to 0
+/// @param concealed    only draw virtual lines belonging to the line above
 /// @param spv          'spell' related variables kept between calls for "wp"
 /// @param foldinfo     fold info for this line
 /// @param[in, out] providers  decoration providers active this line
@@ -1026,8 +1027,8 @@ static int get_rightmost_vcol(win_T *wp, const int *color_cols)
 ///                            or explicitly return `false`.
 ///
 /// @return             the number of last row the line occupies.
-int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, int col_rows, spellvars_T *spv,
-             foldinfo_T foldinfo)
+int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow, int col_rows, bool concealed,
+             spellvars_T *spv, foldinfo_T foldinfo)
 {
   colnr_T vcol_prev = -1;             // "wlv.vcol" of previous character
   ScreenGrid *grid = &wp->w_grid;     // grid specific to the window
@@ -3036,8 +3037,8 @@ end_check:
       virt_line_index = -1;
       virt_line_flags = 0;
       // When the filler lines are actually below the last line of the
-      // file, don't draw the line itself, break here.
-      if (wlv.filler_todo == 0 && (wp->w_botfill || end_fill)) {
+      // file or line line is concealed, don't draw the line itself, break here.
+      if (wlv.filler_todo == 0 && (wp->w_botfill || end_fill || concealed)) {
         break;
       }
     }
