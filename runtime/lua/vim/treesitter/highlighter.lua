@@ -82,7 +82,6 @@ TSHighlighter.__index = TSHighlighter
 ---@param tree vim.treesitter.LanguageTree parser object to use for highlighting
 ---@param opts (table|nil) Configuration of the highlighter:
 ---           - queries table overwrite queries used by the highlighter
----@return vim.treesitter.highlighter Created highlighter object
 function TSHighlighter.new(tree, opts)
   local self = setmetatable({}, TSHighlighter)
 
@@ -147,7 +146,7 @@ function TSHighlighter.new(tree, opts)
     vim.opt_local.spelloptions:append('noplainbuffer')
   end)
 
-  self.tree:parse()
+  self.tree:parse(nil, function() end)
 
   return self
 end
@@ -382,19 +381,34 @@ function TSHighlighter._on_spell_nav(_, _, buf, srow, _, erow, _)
 end
 
 ---@private
----@param _win integer
+---@param win integer
 ---@param buf integer
 ---@param topline integer
 ---@param botline integer
-function TSHighlighter._on_win(_, _win, buf, topline, botline)
+function TSHighlighter._on_win(_, win, buf, topline, botline)
   local self = TSHighlighter.active[buf]
   if not self then
     return false
   end
-  self.tree:parse({ topline, botline + 1 })
-  self:prepare_highlight_states(topline, botline + 1)
+  self.tree:parse({ topline, botline + 1 }, function(trees)
+    if trees then
+      self:_async_parse_callback(win, buf, topline, botline)
+    end
+  end)
   self.redraw_count = self.redraw_count + 1
-  return true
+  return false
+end
+
+---@param win integer
+---@param buf integer
+---@param topline integer
+---@param botline integer
+function TSHighlighter:_async_parse_callback(win, buf, topline, botline)
+  self:prepare_highlight_states(topline, botline)
+  for line = topline, botline do
+    self:_on_line(win, buf, line)
+  end
+  api.nvim__redraw({ buf = self.bufnr, range = { topline, botline + 1 }, flush = false })
 end
 
 api.nvim_set_decoration_provider(ns, {
