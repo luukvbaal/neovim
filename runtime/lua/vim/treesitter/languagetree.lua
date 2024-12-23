@@ -427,6 +427,7 @@ end
 ---
 --- @param range boolean|Range?
 --- @param on_parse fun(trees?: table<integer, TSTree>, err?: string)
+--- @return boolean true if parsing asynchronously
 function LanguageTree:_async_parse(range, on_parse)
   local ct = self:_buf().changedtick
   local total_parse_time = 0
@@ -450,10 +451,12 @@ function LanguageTree:_async_parse(range, on_parse)
       on_parse(nil, 'TIMEOUT')
     else
       vim.schedule(step)
+      return true
     end
+    return false
   end
 
-  step()
+  return step()
 end
 
 --- Recursively parse all regions in the language tree using |treesitter-parsers|
@@ -472,7 +475,7 @@ end
 ---     list of trees returned by the parse (upon success), or `nil` if the parse timed out
 ---     (determined by 'redrawtime'). In the case of a failure, a string representing the error type
 ---     will also be passed to the callback (currently only possible for timeouts).
---- @return table<integer, TSTree>?
+--- @return boolean|table<integer, TSTree>
 function LanguageTree:parse(range, on_parse)
   if on_parse then
     return self:_async_parse(range, on_parse)
