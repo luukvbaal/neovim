@@ -411,6 +411,8 @@ These existing features changed their behavior.
 • Custom highlights in 'rulerformat', 'statuscolumn', 'statusline', 'tabline',
   'winbar' and the number column (through |:sign-define| `numhl`) now combine
   with their respective highlight groups, as opposed to |hl-Normal|.
+  This is also reflected in the `highlights` from |nvim_eval_statusline()|,
+  with a new `combine` field containing the to be combined highlight group.
 
 • |vim.on_key()| callbacks won't be invoked recursively when a callback itself
   consumes input.

@@ -1150,6 +1150,7 @@ function vim.api.nvim_eval(expr) end
 ---               |Dict| with these keys:
 ---     - start: (number) Byte index (0-based) of first character that uses the highlight.
 ---     - group: (string) Name of highlight group.
+---     - combine: (string) Name of to be combined highlight group.
 function vim.api.nvim_eval_statusline(str, opts) end
 
 --- @deprecated

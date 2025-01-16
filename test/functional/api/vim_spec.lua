@@ -3993,8 +3993,8 @@ describe('API', function()
             str = 'TextWithWarningHighlightTextWithUserHighlight',
             width = 45,
             highlights = {
-              { start = 0, group = 'WarningMsg' },
-              { start = 24, group = 'User1' },
+              { start = 0, group = 'WarningMsg', combine = 'StatusLine' },
+              { start = 24, group = 'User1', combine = 'StatusLine' },
             },
           },
           api.nvim_eval_statusline(
@@ -4022,7 +4022,7 @@ describe('API', function()
             width = 43,
             highlights = {
               { start = 0, group = 'StatusLineNC' },
-              { start = 19, group = 'WarningMsg' },
+              { start = 19, group = 'WarningMsg', combine = 'StatusLineNC' },
             },
           },
           api.nvim_eval_statusline(
@@ -4039,7 +4039,7 @@ describe('API', function()
             width = 43,
             highlights = {
               { start = 0, group = 'TabLineFill' },
-              { start = 19, group = 'WarningMsg' },
+              { start = 19, group = 'WarningMsg', combine = 'TabLineFill' },
             },
           },
           api.nvim_eval_statusline(
@@ -4056,7 +4056,7 @@ describe('API', function()
             width = 43,
             highlights = {
               { start = 0, group = 'WinBar' },
-              { start = 19, group = 'WarningMsg' },
+              { start = 19, group = 'WarningMsg', combine = 'WinBar' },
             },
           },
           api.nvim_eval_statusline(
@@ -4085,8 +4085,8 @@ describe('API', function()
           highlights = {
             { group = 'CursorLineFold', start = 0 },
             { group = 'Normal', start = 6 },
-            { group = 'ErrorMsg', start = 6 },
-            { group = 'IncSearch', start = 8 },
+            { group = 'ErrorMsg', start = 6, combine = 'CursorLineSign' },
+            { group = 'IncSearch', start = 8, combine = 'CursorLineSign' },
             { group = 'Normal', start = 10 },
           },
         }, api.nvim_eval_statusline(
@@ -4099,7 +4099,7 @@ describe('API', function()
             width = 9,
             highlights = {
               { group = 'LineNr', start = 0 },
-              { group = 'ErrorMsg', start = 8 },
+              { group = 'ErrorMsg', start = 8, combine = 'LineNr' },
             },
           },
           api.nvim_eval_statusline('%l%#ErrorMsg# ', { use_statuscol_lnum = 3, highlights = true })
