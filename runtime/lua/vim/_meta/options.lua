@@ -1972,10 +1972,14 @@ vim.go.efm = vim.go.errorformat
 ---     set ei=WinEnter,WinLeave
 --- ```
 ---
+--- The window-local value can be used to ignore events for a specific
+--- window and its buffer.
 ---
 --- @type string
 vim.o.eventignore = ""
 vim.o.ei = vim.o.eventignore
+vim.wo.eventignore = vim.o.eventignore
+vim.wo.ei = vim.wo.eventignore
 vim.go.eventignore = vim.o.eventignore
 vim.go.ei = vim.go.eventignore
 

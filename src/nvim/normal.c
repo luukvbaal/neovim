@@ -1302,8 +1302,8 @@ static void normal_check_cursor_moved(NormalState *s)
 {
   // Trigger CursorMoved if the cursor moved.
   if (!finish_op && has_event(EVENT_CURSORMOVED)
-      && (last_cursormoved_win != curwin
-          || !equalpos(last_cursormoved, curwin->w_cursor))) {
+      && !event_ignored_scope(EVENT_CURSORMOVED, curwin->w_p_ei)
+      && (last_cursormoved_win != curwin || !equalpos(last_cursormoved, curwin->w_cursor))) {
     apply_autocmds(EVENT_CURSORMOVED, NULL, NULL, false, curbuf);
     last_cursormoved_win = curwin;
     last_cursormoved = curwin->w_cursor;
@@ -1314,6 +1314,7 @@ static void normal_check_text_changed(NormalState *s)
 {
   // Trigger TextChanged if changedtick differs.
   if (!finish_op && has_event(EVENT_TEXTCHANGED)
+      && !event_ignored_scope(EVENT_TEXTCHANGED, curwin->w_p_ei)
       && curbuf->b_last_changedtick != buf_get_changedtick(curbuf)) {
     apply_autocmds(EVENT_TEXTCHANGED, NULL, NULL, false, curbuf);
     curbuf->b_last_changedtick = buf_get_changedtick(curbuf);
@@ -1324,6 +1325,7 @@ static void normal_check_buffer_modified(NormalState *s)
 {
   // Trigger BufModified if b_modified changed
   if (!finish_op && has_event(EVENT_BUFMODIFIEDSET)
+      && !event_ignored_scope(EVENT_BUFMODIFIEDSET, curwin->w_p_ei)
       && curbuf->b_changed_invalid == true) {
     apply_autocmds(EVENT_BUFMODIFIEDSET, NULL, NULL, false, curbuf);
     curbuf->b_changed_invalid = false;

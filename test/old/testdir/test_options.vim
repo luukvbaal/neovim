@@ -2679,6 +2679,10 @@ func Test_set_option_window_global_local_all()
       elseif opt == 'virtualedit'
         exe 'setl ' .. opt .. '=all'
         exe 'setg ' .. opt .. '=block'
+      " Nvim made window-local
+      elseif opt == 'eventignore'
+        exe 'setl ' .. opt .. '=all'
+        exe 'setg ' .. opt .. '=WinEnter'
       else
         exe 'setl ' .. opt .. '=Local'
         exe 'setg ' .. opt .. '=Global'
@@ -2697,6 +2701,9 @@ func Test_set_option_window_global_local_all()
         call assert_equal('tab:++', eval('&g:' .. opt), 'option:' .. opt)
       elseif opt == 'virtualedit'
         call assert_equal('block', eval('&g:' .. opt), 'option:' .. opt)
+      " Nvim made window-local
+      elseif opt == 'eventignore'
+        call assert_equal('WinEnter', eval('&g:' .. opt), 'option:' .. opt)
       else
         call assert_equal('Global', eval('&g:' .. opt), 'option:' .. opt)
       endif

@@ -2316,13 +2316,15 @@ A jump table for the options with a short description can be found at |Q_op|.
 
 						*'eventignore'* *'ei'*
 'eventignore' 'ei'	string	(default "")
-			global
+			global or local to window |global-local|
 	A list of autocommand event names, which are to be ignored.
 	When set to "all" or when "all" is one of the items, all autocommand
 	events are ignored, autocommands will not be executed.
 	Otherwise this is a comma-separated list of event names.  Example: >vim
 	    set ei=WinEnter,WinLeave
 <
+	The window-local value can be used to ignore events for a specific
+	window and its buffer.
 
 				*'expandtab'* *'et'* *'noexpandtab'* *'noet'*
 'expandtab' 'et'	boolean	(default off)

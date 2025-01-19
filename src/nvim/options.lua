@@ -2606,11 +2606,13 @@ local options = {
         Otherwise this is a comma-separated list of event names.  Example: >vim
             set ei=WinEnter,WinLeave
         <
+        The window-local value can be used to ignore events for a specific
+        window and its buffer.
       ]=],
       expand_cb = 'expand_set_eventignore',
       full_name = 'eventignore',
       list = 'onecomma',
-      scope = { 'global' },
+      scope = { 'global', 'win' },
       short_desc = N_('autocommand events that are ignored'),
       type = 'string',
       varname = 'p_ei',

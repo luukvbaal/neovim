@@ -145,6 +145,8 @@ OPTIONS
   and boolean |global-local| options instead of removing the local value.
 • Setting |hidden-options| now gives an error. In particular, setting
   'noshellslash' is now only allowed on Windows.
+• 'eventignore' is now a |global-local| window option whose local value can
+  be used to persistently ignore events for a certain window and its buffer.
 
 PLUGINS
 

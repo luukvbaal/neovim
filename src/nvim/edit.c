@@ -1350,9 +1350,9 @@ void ins_redraw(bool ready)
   }
 
   // Trigger TextChangedI if changedtick_i differs.
-  if (ready && has_event(EVENT_TEXTCHANGEDI)
+  if (ready && has_event(EVENT_TEXTCHANGEDI) && !pum_visible()
       && curbuf->b_last_changedtick_i != buf_get_changedtick(curbuf)
-      && !pum_visible()) {
+      && !event_ignored_scope(EVENT_TEXTCHANGEDI, curwin->w_p_ei)) {
     aco_save_T aco;
     varnumber_T tick = buf_get_changedtick(curbuf);
 
@@ -1370,9 +1370,9 @@ void ins_redraw(bool ready)
   // Trigger TextChangedP if changedtick_pum differs. When the popupmenu
   // closes TextChangedI will need to trigger for backwards compatibility,
   // thus use different b_last_changedtick* variables.
-  if (ready && has_event(EVENT_TEXTCHANGEDP)
+  if (ready && has_event(EVENT_TEXTCHANGEDP) && pum_visible()
       && curbuf->b_last_changedtick_pum != buf_get_changedtick(curbuf)
-      && pum_visible()) {
+      && !event_ignored_scope(EVENT_TEXTCHANGEDP, curwin->w_p_ei)) {
     aco_save_T aco;
     varnumber_T tick = buf_get_changedtick(curbuf);
 
@@ -1392,9 +1392,9 @@ void ins_redraw(bool ready)
   }
 
   // Trigger BufModified if b_changed_invalid is set.
-  if (ready && has_event(EVENT_BUFMODIFIEDSET)
+  if (ready && has_event(EVENT_BUFMODIFIEDSET) && pum_visible()
       && curbuf->b_changed_invalid == true
-      && !pum_visible()) {
+      && !event_ignored_scope(EVENT_BUFMODIFIEDSET, curwin->w_p_ei)) {
     apply_autocmds(EVENT_BUFMODIFIEDSET, NULL, NULL, false, curbuf);
     curbuf->b_changed_invalid = false;
   }

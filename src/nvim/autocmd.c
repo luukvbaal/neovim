@@ -668,12 +668,15 @@ const char *event_nr2name(event_T event)
 static bool event_ignored(event_T event)
   FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 {
-  char *p = p_ei;
+  return event_ignored_scope(event, p_ei);
+}
 
-  while (*p != NUL) {
-    if (STRNICMP(p, "all", 3) == 0 && (p[3] == NUL || p[3] == ',')) {
+bool event_ignored_scope(event_T event, char *ei)
+{
+  while (*ei != NUL) {
+    if (STRNICMP(ei, "all", 3) == 0 && (ei[3] == NUL || ei[3] == ',')) {
       return true;
-    } else if (event_name2nr(p, &p) == event) {
+    } else if (event_name2nr(ei, &ei) == event) {
       return true;
     }
   }
@@ -682,10 +685,8 @@ static bool event_ignored(event_T event)
 }
 
 // Return OK when the contents of p_ei is valid, FAIL otherwise.
-int check_ei(void)
+int check_ei(char *p)
 {
-  char *p = p_ei;
-
   while (*p) {
     if (STRNICMP(p, "all", 3) == 0 && (p[3] == NUL || p[3] == ',')) {
       p += 3;
@@ -1622,6 +1623,14 @@ bool apply_autocmds_group(event_T event, char *fname, char *fname_io, bool force
   // Ignore events in 'eventignore'.
   if (event_ignored(event)) {
     goto BYPASS_AU;
+  }
+
+  // Ignore events in window-local 'eventignore'.
+  for (size_t i = 0; i < (buf ? kv_size(buf->b_wininfo) : 0); i++) {
+    WinInfo *wi = kv_A(buf->b_wininfo, i);
+    if (wi->wi_win != NULL && event_ignored_scope(event, wi->wi_win->w_p_ei)) {
+      goto BYPASS_AU;
+    }
   }
 
   // Allow nesting of autocommands, but restrict the depth, because it's

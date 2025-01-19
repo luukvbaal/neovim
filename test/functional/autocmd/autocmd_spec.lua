@@ -677,4 +677,23 @@ describe('autocmd', function()
       vim.cmd "tabnew"
     ]]
   end)
+
+  it("window local 'eventignore'", function()
+    command('let g:evs = []')
+    command('setl eventignore=WinLeave,WinEnter,WinScrolled,WinResized,BufModifiedSet,TextChanged')
+    command('autocmd WinEnter * :call add(g:evs, ["WinEnter", expand("<afile>")])')
+    command('autocmd WinLeave * :call add(g:evs, ["WinLeave", expand("<afile>")])')
+    command('autocmd WinScrolled * :call add(g:evs, ["WinScrolled", expand("<afile>")])')
+    command('autocmd WinResized * :call add(g:evs, ["WinResized", expand("<afile>")])')
+    command('autocmd BufModifiedSet * :call add(g:evs, ["BufModifiedSet", expand("<afile>")])')
+    command('autocmd TextChanged * :call add(g:evs, ["TextChanged", expand("<afile>")])')
+    command('call setline(1, range(100))')
+    command('resize -1')
+    feed('G')
+    eq({}, eval('g:evs'))
+    command('split b') -- Split window doesn't get window-local 'eventignore'
+    eq({ { 'WinResized', '1001' }, { 'WinScrolled', '1001' } }, eval('g:evs'))
+    command('wincmd w') -- Leaving window without local 'eventignore'
+    eq({ { 'WinResized', '1001' }, { 'WinScrolled', '1001' }, { 'WinLeave', 'b' } }, eval('g:evs'))
+  end)
 end)

@@ -4418,6 +4418,8 @@ void *get_varp_scope_from(vimoption_T *p, int opt_flags, buf_T *buf, win_T *win)
       return &(buf->b_p_ffu);
     case kOptErrorformat:
       return &(buf->b_p_efm);
+    case kOptEventignore:
+      return &(win->w_p_ei);
     case kOptGrepprg:
       return &(buf->b_p_gp);
     case kOptMakeprg:
@@ -4541,6 +4543,8 @@ void *get_varp_from(vimoption_T *p, buf_T *buf, win_T *win)
     return *buf->b_p_ffu != NUL ? &(buf->b_p_ffu) : p->var;
   case kOptErrorformat:
     return *buf->b_p_efm != NUL ? &(buf->b_p_efm) : p->var;
+  case kOptEventignore:
+    return *win->w_p_ei != NUL ? &(win->w_p_ei) : p->var;
   case kOptGrepprg:
     return *buf->b_p_gp != NUL ? &(buf->b_p_gp) : p->var;
   case kOptMakeprg:
@@ -4895,6 +4899,7 @@ void copy_winopt(winopt_T *from, winopt_T *to)
   to->wo_winhl = copy_option_val(from->wo_winhl);
   to->wo_winbl = from->wo_winbl;
   to->wo_stc = copy_option_val(from->wo_stc);
+  to->wo_ei = copy_option_val(from->wo_ei);
 
   // Copy the script context so that we know were the value was last set.
   memmove(to->wo_script_ctx, from->wo_script_ctx, sizeof(to->wo_script_ctx));
@@ -4933,6 +4938,7 @@ static void check_winopt(winopt_T *wop)
   check_string_option(&wop->wo_ve);
   check_string_option(&wop->wo_wbr);
   check_string_option(&wop->wo_stc);
+  check_string_option(&wop->wo_ei);
 }
 
 /// Free the allocated memory inside a winopt_T.

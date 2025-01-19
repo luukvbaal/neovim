@@ -1083,9 +1083,11 @@ int expand_set_encoding(optexpand_T *args, int *numMatches, char ***matches)
 }
 
 /// The 'eventignore' option is changed.
-const char *did_set_eventignore(optset_T *args FUNC_ATTR_UNUSED)
+const char *did_set_eventignore(optset_T *args)
 {
-  if (check_ei() == FAIL) {
+  char **varp = (char **)args->os_varp;
+
+  if (check_ei(*varp) == FAIL) {
     return e_invarg;
   }
   return NULL;
