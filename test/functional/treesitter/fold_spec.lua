@@ -1,6 +1,7 @@
 local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
+local tt = require('test.functional.testterm')
 
 local clear = n.clear
 local eq = t.eq
@@ -842,5 +843,20 @@ t2]])
       [18] = '2',
       [19] = '1',
     }, get_fold_levels())
+  end)
+  
+  it("", function()
+    local name = t.tmpname()
+    command('edit name')
+    local nvim2 = n.new_session(true, { args = { '-u', name, '-i', 'NONE', '--embed', name }, merge = false })
+    n.set_session(nvim2)
+    local screen = Screen.new(60, 48)
+    screen:add_extra_attr_ids({
+      [100] = { background = Screen.colors.NvimLightGrey2, foreground = Screen.colors.NvimDarkGrey2 },
+      [101] = { background = Screen.colors.DarkGreen, foreground = Screen.colors.White },
+      [102] = { bold = true, background = Screen.colors.DarkGreen, foreground = Screen.colors.White },
+    })
+    feed(':e<CR>')
+    screen:snapshot_util()
   end)
 end)

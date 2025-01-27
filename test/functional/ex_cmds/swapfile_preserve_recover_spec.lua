@@ -410,6 +410,51 @@ describe('swapfile detection', function()
       screen:expect({ any = 'W325: Ignoring swapfile from Nvim process' })
     end)
   end)
+
+  it("doesn't break treesitter highlighter with foldexpr", function()
+    local initfile = 'init.lua'
+    exec(init)
+    write_file(initfile, [[
+vim.o.foldmethod = 'expr'
+vim.o.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+vim.o.filetype = 'vim'
+vim.api.nvim_del_augroup_by_name('nvim.swapfile')
+vim.treesitter.start()
+    ]])
+    command('edit ' .. initfile)
+    local nvim2 =
+      n.new_session(true, { env = { VIMRUNTIME = os.getenv('VIMRUNTIME') },
+args = { '-u', initfile, '-i', 'NONE', '--embed' }, merge = false })
+    set_session(nvim2)
+    local screen = Screen.new(80, 25)
+    exec(init)
+    feed((':edit %s<CR>'):format(initfile))
+    screen:sleep(1)
+    feed('e')
+    screen:add_extra_attr_ids({
+      [100] = { foreground = Screen.colors.NvimLightGrey2 },
+      [101] = { foreground = Screen.colors.NvimLightGreen },
+      [102] = { foreground = Screen.colors.NvimLightCyan },
+      [103] = { foreground = Screen.colors.NvimDarkGrey4 },
+      [104] = { background = Screen.colors.NvimLightGrey3, foreground = Screen.colors.NvimDarkGrey3 },
+    })
+    local s1 = [[
+      {100:^vim.o.foldmethod} {100:=} {101:'expr'}                                                       |
+      {100:vim.o.foldexpr} {100:=} {101:'v:lua.vim.treesitter.foldexpr()'}                              |
+      {100:vim.o.filetype} {100:=} {101:'vim'}                                                          |
+      {100:vim.api.}{102:nvim_del_augroup_by_name}{100:(}{101:'nvim.swapfile'}{100:)}                               |
+      {100:vim.treesitter.}{102:start}{100:()}                                                          |
+                                                                                      |
+      {103:~                                                                               }|*17
+      {104:init.lua                                                      1,1            All}|
+                                                                                      |
+    ]]
+    screen:expect(s1)
+    feed(':e<CR>')
+    screen:sleep(1000)
+    feed('e')
+    screen:expect(s1)
+  end)
 end)
 
 describe('quitting swapfile dialog on startup stops TUI properly', function()
