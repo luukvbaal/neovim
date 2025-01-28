@@ -261,10 +261,9 @@ end
 ---@param fn function
 local function schedule_if_loaded(bufnr, fn)
   vim.schedule(function()
-    if not api.nvim_buf_is_loaded(bufnr) then
-      return
+    if foldinfos[bufnr] and api.nvim_buf_is_loaded(bufnr) then
+      fn()
     end
-    fn()
   end)
 end
 
