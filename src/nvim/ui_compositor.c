@@ -437,10 +437,12 @@ static void compose_line(Integer row, Integer startcol, Integer endcol, LineFlag
           thru &= (linebuf[i + 1] == schar_from_ascii(' ')
                    || linebuf[i + 1] == schar_from_char(L'\u2800'));
         }
-        attrbuf[i] = (sattr_T)hl_blend_attrs(bg_attrs[i], attrbuf[i], &thru);
-        if (width == 2) {
-          attrbuf[i + 1] = (sattr_T)hl_blend_attrs(bg_attrs[i + 1],
-                                                   attrbuf[i + 1], &thru);
+        // Don't blend with uninitialized background cells.
+        if (bg_attrs[i] >= 0) {
+          attrbuf[i] = (sattr_T)hl_blend_attrs(bg_attrs[i], attrbuf[i], &thru);
+        }
+        if (width == 2 && bg_attrs[i + 1] >= 0) {
+          attrbuf[i + 1] = (sattr_T)hl_blend_attrs(bg_attrs[i + 1], attrbuf[i + 1], &thru);
         }
         if (thru) {
           memcpy(linebuf + i, bg_line + i, (size_t)width * sizeof(linebuf[i]));
