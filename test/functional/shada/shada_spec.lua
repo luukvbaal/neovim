@@ -159,6 +159,7 @@ describe('ShaDa support code', function()
   local find_file = function(fname)
     local found = {}
     for _, v in ipairs(read_shada_file(shada_fname)) do
+      print(vim.inspect(v))
       if marklike[v.type] and v.value.f == fname then
         found[v.type] = (found[v.type] or 0) + 1
       elseif v.type == 9 then
@@ -214,6 +215,7 @@ describe('ShaDa support code', function()
   end)
 
   it('does not store unlisted buffer', function()
+    nvim_command('set shellslash')
     local fname = fn.getcwd() .. '/file'
     api.nvim_set_var('__fname', fname)
     nvim_command('edit `=__fname`')

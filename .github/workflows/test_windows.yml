@@ -9,6 +9,10 @@ on:
         type: number
   workflow_dispatch:
 
+env: 
+  TEST_FILE: test/functional/shada/shada_spec.lua
+  # TEST_FILTER: unlisted
+
 jobs:
   windows:
     runs-on: windows-2022
@@ -16,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [functional, old]
+        test: [functional]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
