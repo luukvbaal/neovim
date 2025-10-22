@@ -1,5 +1,6 @@
 -- Tests for (protocol-driven) ui2, intended to replace the legacy message grid UI.
 
+local t = require('test.testutil')
 local n = require('test.functional.testnvim')()
 local Screen = require('test.functional.ui.screen')
 
@@ -7,8 +8,13 @@ local clear, exec, exec_lua, feed = n.clear, n.exec, n.exec_lua, n.feed
 
 describe('cmdline2', function()
   local screen
+  local testlog = 'Xtest_cmdline2_log'
+  after_each(function()
+    n.check_close()
+    os.remove(testlog)
+  end)
   before_each(function()
-    clear()
+    clear({ env = { NVIM_LOG_FILE = testlog } })
     screen = Screen.new()
     screen:add_extra_attr_ids({
       [100] = { foreground = Screen.colors.Magenta1, bold = true },
@@ -105,5 +111,18 @@ describe('cmdline2', function()
       {1:~                                                    }|*12
       {16::}{15:call} {25:foo}{16:()}^                                          |
     ]])
+  end)
+
+  it('can change cmdline buffer during textlock', function()
+    exec([[
+      func Foo(a, b)
+        redrawstatus!
+      endfunc
+      set wildoptions=pum findfunc=Foo wildmode=noselect:lastused,full
+      au CmdlineChanged * call wildtrigger()
+    ]])
+    feed(':find f')
+    t.assert_log('findfunc', nil, 100)
+    t.assert_nolog('E565', nil, 100)
   end)
 end)
